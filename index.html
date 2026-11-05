@@ -161,6 +161,11 @@ fieldset.group .hdr { display: flex; justify-content: flex-end; margin: -4px 0 6
 .badge.rejected { border-color: var(--bad); color: var(--bad); }
 .previewbox { border-top: 1px solid var(--line); padding-top: 8px; }
 .downloads { font-size: 13px; }
+dialog.rules { background: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 20px; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
+dialog.rules::backdrop { background: rgba(0, 0, 0, .55); }
+dialog.rules h2 { margin-bottom: 8px; }
+dialog.rules ul { padding-left: 20px; margin: 8px 0 12px; }
+dialog.rules li { margin-bottom: 6px; }
 .downloads b { font-size: 18px; color: var(--title); font-variant-numeric: tabular-nums; }
 .preview { display: flex; flex-direction: column; gap: 4px; }
 .pv-row { display: flex; gap: 10px; align-items: center; }
@@ -1016,9 +1021,12 @@ function renderExport() {
     const result = h("div", {});
     const btn = h("button", { class: "btn primary", disabled: bad > 0 }, bad ? `Corrija ${bad} erro(s)` : "Publicar no servidor do PMP");
     btn.addEventListener("click", async () => {
+      if (visibility === "public" && !(await confirmRules())) return;
       btn.disabled = true; btn.textContent = "Enviando…";
       try {
-        const r = await api("/api/publish", { method: "POST", body: await buildUpload(visibility) });
+        const upload = await buildUpload(visibility);
+        if (visibility === "public") upload.rules = RULES_VERSION;
+        const r = await api("/api/publish", { method: "POST", body: upload });
         result.replaceChildren(r.link
           ? linkBox(r.link, "Link privado: vale para 10 instalações (e até 30 dias). Gere outro em Meus pacotes quando acabar.")
           : h("div", { class: "msg ok" }, "Enviado! O pacote está aguardando aprovação. Quando for aprovado, o link eterno aparece em Meus pacotes."));
@@ -1044,6 +1052,39 @@ function renderExport() {
       h("li", {}, "O link só funciona dentro do app: no navegador ele não baixa nada.")),
     h("p", { class: "hint" }, "Para editar depois, use \"Salvar projeto\": o arquivo .pmpfkmn só abre com a sua conta do Discord."));
   return pane;
+}
+
+// Regras pra publicar como público (o servidor confere o aceite)
+const RULES_VERSION = 1;
+const RULES = [
+  ["Nada de nudez ou conteúdo sexual", "nem em imagens, nem em nomes ou textos."],
+  ["Nada de violência exagerada ou nojenta", "gore, tortura e coisas do tipo ficam de fora."],
+  ["Sem ódio ou preconceito", "nada que ataque alguém por raça, religião, gênero, orientação, deficiência ou origem."],
+  ["Sem apologia a coisas pesadas", "como crimes, drogas, automutilação, nazismo ou grupos extremistas."],
+  ["Respeite as pessoas", "sem ofender, expor ou zoar membros do server ou pessoas reais."],
+  ["Respeite o trabalho dos outros", "não publique arte ou Fakemons de outra pessoa como se fossem seus. Usou arte de alguém? Dê o crédito na descrição."],
+  ["Sem spam", "nada de pacotes vazios, repetidos ou só de teste no público. Pra testar, use o Privado."],
+];
+function confirmRules() {
+  return new Promise(resolve => {
+    const accept = h("input", { type: "checkbox", id: "rules-ok" });
+    const go = h("button", { class: "btn primary", disabled: true }, "Aceito, publicar");
+    const cancel = h("button", { class: "btn" }, "Cancelar");
+    accept.addEventListener("change", () => { go.disabled = !accept.checked; });
+    const dlg = h("dialog", { class: "rules", "aria-labelledby": "rules-title" },
+      h("h2", { id: "rules-title" }, "Antes de publicar"),
+      h("p", {}, "Pacotes públicos aparecem pra todo mundo do PMP. Quase tudo é bem-vindo, só pedimos o básico:"),
+      h("ul", {}, RULES.map(([t, d]) => h("li", {}, h("b", {}, t), ": " + d))),
+      h("p", { class: "hint" }, "Os admins revisam cada pacote antes de ele ficar público. Se algo quebrar essas regras, o pacote é recusado ou apagado. Em casos leves a pessoa recebe um aviso; em casos graves ou repetidos, pode ser banida do server do PMP."),
+      h("label", { class: "check", for: "rules-ok", style: "margin:10px 0 14px" }, accept, "Li e aceito as regras"),
+      h("div", { class: "checks", style: "justify-content:flex-end" }, cancel, go));
+    const done = ok => { dlg.close(); dlg.remove(); resolve(ok); };
+    cancel.addEventListener("click", () => done(false));
+    go.addEventListener("click", () => done(true));
+    dlg.addEventListener("cancel", e => { e.preventDefault(); done(false); });
+    document.body.append(dlg);
+    dlg.showModal();
+  });
 }
 
 async function loadMine(box) {
