@@ -1,0 +1,1144 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Criador de Fakemon PMP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Lato:wght@300;400;700&display=swap">
+<style>
+/* Visual de programa de desktop (inspirado no FakemonCreator) com as cores do PMP.
+   Escuro = modo escuro do app; claro = PMP original (faixa vermelha, placas creme). */
+:root {
+  --win: #f0f0f0; --chrome: linear-gradient(#4ff2cd, #2fe2b2); --chrome-ink: #141414; --chrome-2: #24d6a2;
+  --panel: #ffffff; --field: #ffffff; --line: #bfe6d8; --ink: #262420; --muted: #6b6b6b;
+  --accent: #1fc493; --accent-ink: #ffffff; --sel: #1fc493; --sel-ink: #ffffff;
+  --title: #17b384; --mark: #ffffff; --focus: #0e8f68; --ok: #1f9a1f; --warn: #b8740f; --bad: #c0392b;
+  --custom: #0e9a6e;
+  --body: "Lato", system-ui, sans-serif; --display: "Cinzel", Georgia, serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --win: #161213; --chrome: #1f1719; --chrome-ink: #e6dbdb; --chrome-2: #2a1e21;
+  --panel: #1c1617; --field: #2a2124; --line: #3d2f33; --ink: #e6dbdb; --muted: #a8979a;
+  --accent: #8f2933; --accent-ink: #ffffff; --sel: #8f2933; --sel-ink: #ffffff;
+  --title: #ed8c91; --mark: #ec9e29; --focus: #ec9e29; --ok: #6cc28a; --warn: #e3a64a; --bad: #ff8a80;
+  --custom: #ed8c91; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --win: #161213; --chrome: #1f1719; --chrome-ink: #e6dbdb; --chrome-2: #2a1e21;
+  --panel: #1c1617; --field: #2a2124; --line: #3d2f33; --ink: #e6dbdb; --muted: #a8979a;
+  --accent: #8f2933; --accent-ink: #ffffff; --sel: #8f2933; --sel-ink: #ffffff;
+  --title: #ed8c91; --mark: #ec9e29; --focus: #ec9e29; --ok: #6cc28a; --warn: #e3a64a; --bad: #ff8a80;
+  --custom: #ed8c91; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--win); color: var(--ink); font: 14px/1.4 var(--body); min-height: 100vh; display: flex; flex-direction: column; }
+
+/* Barra de título + menu + abas */
+.titlebar { background: var(--chrome); color: var(--chrome-ink); text-align: center; padding: 6px 16px; font-size: 13px; opacity: .95; }
+.titlebar b { font: 700 13px var(--display); letter-spacing: .04em; }
+.menubar { background: var(--chrome); color: var(--chrome-ink); display: flex; flex-wrap: wrap; gap: 2px; padding: 0 8px 2px; }
+.menubar button, .menubar label { background: none; border: 0; color: inherit; font: 13px var(--body); padding: 4px 10px; border-radius: 3px; cursor: pointer; }
+.menubar button:hover, .menubar label:hover { background: var(--chrome-2); }
+.menubar .spacer { flex: 1; }
+.tabbar { background: var(--chrome-2); display: flex; flex-wrap: wrap; padding: 0 8px; border-bottom: 1px solid var(--line); }
+.tabbar button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--chrome-ink); opacity: .8; font: 13px var(--body); padding: 6px 12px; cursor: pointer; }
+.tabbar button[aria-selected="true"] { opacity: 1; border-bottom-color: var(--mark); font-weight: 700; }
+.tabbar .count { opacity: .7; font-weight: 400; }
+
+/* Área principal: lista à esquerda, ficha à direita */
+.work { flex: 1; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; padding: 20px max(16px, env(safe-area-inset-right, 0px)) 20px max(16px, env(safe-area-inset-left, 0px)); max-width: 1240px; width: 100%; margin: 0 auto; align-items: start; }
+.work.single { grid-template-columns: minmax(0, 720px); justify-content: center; }
+@media (max-width: 820px) { .work { grid-template-columns: minmax(0, 1fr); } }
+.side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.side h2, .pane h2 { font: 300 22px var(--body); color: var(--title); margin: 0; }
+.listbox { background: var(--field); border: 1px solid var(--line); min-height: 220px; max-height: 46vh; overflow: auto; padding: 2px 0; }
+.listbox .row { display: flex; justify-content: space-between; gap: 6px; width: 100%; border: 0; background: none; color: var(--ink); text-align: left; padding: 3px 8px; font: 14px var(--body); cursor: pointer; }
+.listbox .row:hover { background: color-mix(in srgb, var(--sel) 18%, transparent); }
+.listbox .row.on { background: var(--sel); color: var(--sel-ink); }
+.listbox .row small { opacity: .75; font-variant-numeric: tabular-nums; }
+.listbox .empty { color: var(--muted); padding: 6px 8px; font-size: 13px; }
+.cap { font-size: 12px; color: var(--muted); }
+.imgprev { display: flex; flex-direction: column; gap: 6px; }
+.imgprev canvas { background: transparent; border: 1px dashed var(--line); image-rendering: pixelated; max-width: 100%; height: auto; align-self: flex-start; }
+@media (max-width: 820px) {
+  .listbox { min-height: 0; max-height: 170px; }
+  .side .imgprev { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 10px; align-items: center; }
+  .side .imgprev .cap { grid-column: 1 / -1; }
+  .side .imgprev canvas { grid-row: span 2; }
+}
+
+/* Controles no estilo do programa */
+.btn { background: var(--field); color: var(--ink); border: 1px solid var(--line); font: 13px var(--body); padding: 5px 12px; cursor: pointer; text-align: center; display: inline-block; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+.btn.danger { color: var(--bad); }
+.btn.small { padding: 2px 8px; font-size: 12px; }
+.btn.block { width: 100%; }
+input, select, textarea { font: 14px var(--body); color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 0; padding: 4px 7px; width: 100%; min-width: 0; }
+textarea { resize: vertical; min-height: 110px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
+
+.pane { min-width: 0; }
+.species { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; margin-bottom: 10px; }
+.species span { font: 300 34px var(--body); color: var(--title); }
+.species input { font: 300 30px var(--body); padding: 6px 10px; }
+.inline { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; margin-bottom: 18px; }
+.inline label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.inline input, .inline select { width: auto; }
+.inline input[type=number] { width: 70px; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px 28px; align-items: start; }
+@media (max-width: 1000px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* Formulário com rótulo à esquerda */
+.form { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 10px; align-items: center; }
+.form > .lbl { font-size: 13px; color: var(--muted); }
+.form2 { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr); gap: 3px 10px; align-items: center; }
+.form2 > .lbl { font-size: 13px; color: var(--muted); }
+@media (max-width: 520px) { .form2 { grid-template-columns: max-content minmax(0, 1fr); } }
+
+/* Atributos: caixa com número grande */
+.attrs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.attrs label { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; color: var(--muted); }
+.attrs input { font: 300 26px var(--body); text-align: left; padding: 4px 8px; height: 46px; }
+@media (max-width: 520px) { .attrs { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* Lista com caixa + "adicionar" embaixo (igual as listas do programa) */
+.lb { display: flex; flex-direction: column; min-width: 0; }
+.lb .lb-title { font-size: 13px; color: var(--muted); margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.lb.big .lb-title { font: 300 19px var(--body); color: var(--title); }
+.lb .lb-box { background: var(--field); border: 1px solid var(--line); min-height: 96px; max-height: 210px; overflow: auto; padding: 2px 0; }
+.lb.tall .lb-box { min-height: 150px; }
+.lb .lb-row { display: flex; justify-content: space-between; align-items: center; padding: 1px 4px 1px 8px; font-size: 14px; }
+.lb .lb-row:hover { background: color-mix(in srgb, var(--sel) 18%, transparent); }
+.lb .lb-row.custom span { color: var(--custom); font-weight: 700; }
+.lb .lb-row button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
+.lb .lb-row button:hover { color: var(--bad); }
+.lb .lb-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; margin-top: -1px; }
+.lb .lb-add input, .lb .lb-add select { border-top-color: var(--line); }
+.lb .lb-add .btn { border-left: 0; }
+.levels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 18px; }
+@media (max-width: 520px) { .levels { grid-template-columns: minmax(0, 1fr); } }
+.levels .lv-head { display: flex; align-items: center; gap: 6px; }
+.levels .lv-head input { width: 56px; padding: 1px 4px; }
+.addlevel { border: 1px dashed var(--line); background: none; color: var(--muted); min-height: 120px; cursor: pointer; font: 13px var(--body); }
+.addlevel:hover { border-color: var(--accent); color: var(--ink); }
+
+.checks { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.check { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; }
+.check input { width: auto; accent-color: var(--accent); }
+
+/* Caixa de grupo (automações etc.) */
+fieldset.group { border: 1px solid var(--line); padding: 10px 12px 12px; margin: 0; min-width: 0; }
+fieldset.group > legend { padding: 0 6px; font-size: 13px; color: var(--title); font-weight: 700; }
+fieldset.group .hdr { display: flex; justify-content: flex-end; margin: -4px 0 6px; }
+.hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; max-width: 72ch; }
+.sub { font: 300 19px var(--body); color: var(--title); margin: 18px 0 6px; }
+.dmg { display: grid; grid-template-columns: max-content 70px 90px; gap: 3px 8px; align-items: center; }
+.dmg .lbl { font-size: 13px; color: var(--muted); }
+
+.msgs { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; }
+.msg { border-left: 3px solid var(--line); padding: 3px 10px; background: var(--field); }
+.msg.bad { border-color: var(--bad); } .msg.warn { border-color: var(--warn); } .msg.ok { border-color: var(--ok); }
+.steps { margin: 0; padding-left: 20px; max-width: 70ch; } .steps li { margin-bottom: 5px; }
+.statusbar { background: var(--chrome-2); color: var(--chrome-ink); font-size: 12px; padding: 3px 12px; display: flex; justify-content: space-between; gap: 10px; opacity: .9; padding-bottom: calc(3px + env(safe-area-inset-bottom, 0px)); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(34px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--win); padding: 7px 14px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.show { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+.sep { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
+.vis { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; margin: 6px 0 12px; }
+.visopt { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--line); background: var(--field); padding: 10px; cursor: pointer; }
+.visopt input { width: auto; margin-top: 3px; accent-color: var(--accent); }
+.linkbox { margin-top: 10px; }
+.linkbox input { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.pkglist { display: flex; flex-direction: column; gap: 8px; }
+.pkg { border: 1px solid var(--line); background: var(--field); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.pkg-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
+.badge { font-size: 12px; padding: 1px 8px; border: 1px solid var(--line); white-space: nowrap; }
+.badge.public { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.badge.pending { border-color: var(--warn); color: var(--warn); }
+.badge.rejected { border-color: var(--bad); color: var(--bad); }
+.previewbox { border-top: 1px solid var(--line); padding-top: 8px; }
+.preview { display: flex; flex-direction: column; gap: 4px; }
+.pv-row { display: flex; gap: 10px; align-items: center; }
+.pv-row img { image-rendering: pixelated; flex: none; }
+.pv-noimg { width: 63px; height: 63px; border: 1px dashed var(--line); flex: none; }
+</style>
+</head>
+<body>
+<div class="titlebar"><span id="wintitle">sem título</span> | <b>Criador de Fakemon</b> · PMP</div>
+<nav class="menubar">
+  <label for="import-file">Abrir projeto</label>
+  <input id="import-file" type="file" accept=".pmpfkmn" hidden>
+  <button id="btn-save">Salvar projeto</button>
+  <button id="btn-publish">Publicar</button>
+  <span class="spacer"></span>
+  <button id="btn-login">Entrar com Discord</button>
+  <button id="btn-theme" title="Alternar tema">Tema</button>
+</nav>
+<nav class="tabbar" id="tabs" role="tablist"></nav>
+<main class="work" id="main"></main>
+<footer class="statusbar"><span id="status">Rascunho salvo neste navegador</span><span>Pokémon Mundo Perfeito</span></footer>
+<div class="toast" id="toast" role="status"></div>
+
+<script id="lists" type="application/json">{"moves": ["Absorb", "Accelerock", "Acid", "Acid Armor", "Acid Spray", "Acrobatics", "Acupressure", "Aerial Ace", "Aeroblast", "After You", "Agility", "Air Cutter", "Air Slash", "Alluring Voice", "Ally Switch", "Amnesia", "Anchor Shot", "Ancient Power", "Apple Acid", "Aqua Cutter", "Aqua Jet", "Aqua Ring", "Aqua Step", "Aqua Tail", "Arm Thrust", "Armor Cannon", "Aromatherapy", "Aromatic Mist", "Assist", "Assurance", "Astonish", "Astral Barrage", "Attack Order", "Attract", "Aura Sphere", "Aura Wheel", "Aurora Beam", "Aurora Veil", "Autotomize", "Avalanche", "Axe Kick", "Baby-Doll Eyes", "Baneful Bunker", "Barb Barrage", "Barrage", "Barrier", "Baton Pass", "Beak Blast", "Beat Up", "Behemoth Bash", "Behemoth Blade", "Belch", "Belly Drum", "Bestow", "Bide", "Bind", "Bite", "Bitter Blade", "Bitter Malice", "Blast Burn", "Blaze Kick", "Blazing Torque", "Bleakwind Storm", "Blizzard", "Block", "Blood Moon", "Blue Flare", "Body Press", "Body Slam", "Bolt Beak", "Bolt Strike", "Bone Club", "Bone Rush", "Bonemerang", "Boomburst", "Bounce", "Branch Poke", "Brave Bird", "Breaking Swipe", "Brick Break", "Brine", "Brutal Swing", "Bubble", "Bubble Beam", "Bug Bite", "Bug Buzz", "Bulk Up", "Bulldoze", "Bullet Punch", "Bullet Seed", "Burn Up", "Burning Bulwark", "Burning Jealousy", "Calm Mind", "Camouflage", "Captivate", "Ceaseless Edge", "Charge", "Charge Beam", "Charm", "Chatter", "Chilling Water", "Chilly Reception", "Chip Away", "Chloroblast", "Circle Throw", "Clamp", "Clanging Scales", "Clangorous Soul", "Clear Smog", "Close Combat", "Coaching", "Coil", "Collision Course", "Combat Torque", "Comet Punch", "Comeuppance", "Confide", "Confuse Ray", "Confusion", "Constrict", "Conversion", "Conversion 2", "Copycat", "Core Enforcer", "Corrosive Gas", "Cosmic Power", "Cotton Guard", "Cotton Spore", "Counter", "Court Change", "Covet", "Crabhammer", "Crafty Shield", "Cross Chop", "Cross Poison", "Crunch", "Crush Claw", "Crush Grip", "Curse", "Cut", "Dark Pulse", "Dark Void", "Darkest Lariat", "Dazzling Gleam", "Decorate", "Defend Order", "Defense Curl", "Defog", "Destiny Bond", "Detect", "Diamond Storm", "Dig", "Dire Claw", "Disable", "Disarming Voice", "Discharge", "Dive", "Dizzy Punch", "Doodle", "Doom Desire", "Double Hit", "Double Iron Bash", "Double Kick", "Double Shock", "Double Slap", "Double Team", "Double-Edge", "Draco Meteor", "Dragon Ascent", "Dragon Breath", "Dragon Cheer", "Dragon Claw", "Dragon Dance", "Dragon Darts", "Dragon Energy", "Dragon Hammer", "Dragon Pulse", "Dragon Rage", "Dragon Rush", "Dragon Tail", "Drain Punch", "Draining Kiss", "Dream Eater", "Drill Peck", "Drill Run", "Drum Beating", "Dual Chop", "Dual Wingbeat", "Dynamax Cannon", "Dynamic Punch", "Earth Power", "Earthquake", "Echoed Voice", "Eerie Impulse", "Eerie Spell", "Egg Bomb", "Electric Terrain", "Electrify", "Electro Ball", "Electro Drift", "Electro Shot", "Electroweb", "Embargo", "Ember", "Encore", "Endeavor", "Endure", "Energy Ball", "Entrainment", "Eruption", "Esper Wing", "Eternabeam", "Expanding Force", "Explosion", "Extrasensory", "Extreme Speed", "Facade", "Fairy Lock", "Fairy Wind", "Fake Out", "Fake Tears", "False Surrender", "False Swipe", "Feather Dance", "Feint", "Feint Attack", "Fell Stinger", "Fickle Beam", "Fiery Dance", "Fiery Wrath", "Fillet Away", "Final Gambit", "Fire Blast", "Fire Fang", "Fire Lash", "Fire Pledge", "Fire Punch", "Fire Spin", "First Impression", "Fishious Rend", "Fissure", "Flail", "Flame Burst", "Flame Charge", "Flame Wheel", "Flamethrower", "Flare Blitz", "Flash", "Flash Cannon", "Flatter", "Fleur Cannon", "Fling", "Flip Turn", "Floral Healing", "Flower Shield", "Flower Trick", "Fly", "Flying Press", "Focus Blast", "Focus Energy", "Focus Punch", "Follow Me", "Force Palm", "Foresight", "Forest's Curse", "Foul Play", "Freeze Shock", "Freeze-Dry", "Freezing Glare", "Frenzy Plant", "Frost Breath", "Frustration", "Fury Attack", "Fury Cutter", "Fury Swipes", "Fusion Bolt", "Fusion Flare", "Future Sight", "G-Max Centiferno", "G-Max Sandblast", "Gastro Acid", "Gear Grind", "Gear Up", "Geomancy", "Giga Drain", "Giga Impact", "Gigaton Hammer", "Glacial Lance", "Glaciate", "Glaive Rush", "Glare", "Grass Knot", "Grass Pledge", "Grass Whistle", "Grassy Glide", "Grassy Terrain", "Grav Apple", "Gravity", "Growl", "Growth", "Grudge", "Guard Split", "Guard Swap", "Guillotine", "Gunk Shot", "Gust", "Gyro Ball", "Hail", "Hammer Arm", "Happy Hour", "Hard Press", "Harden", "Haze", "Head Charge", "Head Smash", "Headbutt", "Headlong Rush", "Heal Bell", "Heal Block", "Heal Order", "Heal Pulse", "Healing Wish", "Heart Stamp", "Heart Swap", "Heat Crash", "Heat Wave", "Heavy Slam", "Helping Hand", "Hex", "Hidden Power", "High Horsepower", "High Jump Kick", "Hold Back", "Hold Hands", "Hone Claws", "Horn Attack", "Horn Drill", "Horn Leech", "Howl", "Hurricane", "Hydro Cannon", "Hydro Pump", "Hydro Steam", "Hyper Beam", "Hyper Drill", "Hyper Fang", "Hyper Voice", "Hyperspace Fury", "Hyperspace Hole", "Hypnosis", "Ice Ball", "Ice Beam", "Ice Burn", "Ice Fang", "Ice Hammer", "Ice Punch", "Ice Shard", "Ice Spinner", "Icicle Crash", "Icicle Spear", "Icy Wind", "Imprison", "Incinerate", "Infernal Parade", "Inferno", "Infestation", "Ingrain", "Instruct", "Ion Deluge", "Iron Defense", "Iron Head", "Iron Tail", "Ivy Cudgel", "Jaw Lock", "Jet Punch", "Judgment", "Jump Kick", "Jungle Healing", "Karate Chop", "Kinesis", "King's Shield", "Knock Off", "Kowtow Cleave", "Land's Wrath", "Laser Focus", "Lash Out", "Last Resort", "Last Respects", "Lava Plume", "Leaf Blade", "Leaf Storm", "Leaf Tornado", "Leafage", "Leech Life", "Leech Seed", "Leer", "Lick", "Life Dew", "Light Screen", "Light of Ruin", "Liquidation", "Lock-On", "Lovely Kiss", "Low Kick", "Low Sweep", "Lucky Chant", "Lumina Crash", "Lunar Blessing", "Lunar Dance", "Lunge", "Luster Purge", "Mach Punch", "Magic Coat", "Magic Powder", "Magic Room", "Magical Leaf", "Magical Torque", "Magma Storm", "Magnet Bomb", "Magnet Rise", "Magnetic Flux", "Magnitude", "Make It Rain", "Malignant Chain", "Mat Block", "Matcha Gotcha", "Max Guard", "Me First", "Mean Look", "Meditate", "Mega Drain", "Mega Kick", "Mega Punch", "Megahorn", "Memento", "Metal Burst", "Metal Claw", "Metal Sound", "Meteor Assault", "Meteor Beam", "Meteor Mash", "Metronome", "Mighty Cleave", "Milk Drink", "Mimic", "Mind Blown", "Mind Reader", "Minimize", "Miracle Eye", "Mirror Coat", "Mirror Move", "Mirror Shot", "Mist", "Mist Ball", "Misty Explosion", "Misty Terrain", "Moonblast", "Moongeist Beam", "Moonlight", "Morning Sun", "Mortal Spin", "Mountain Gale", "Mud Bomb", "Mud Shot", "Mud Sport", "Mud-Slap", "Muddy Water", "Multi-Attack", "Mystical Fire", "Mystical Power", "Nasty Plot", "Natural Gift", "Nature Power", "Nature's Madness", "Needle Arm", "Night Daze", "Night Shade", "Night Slash", "Nightmare", "Nihil Light", "No Retreat", "Noble Roar", "Noxious Torque", "Nuzzle", "Oblivion Wing", "Obstruct", "Octazooka", "Octolock", "Odor Sleuth", "Ominous Wind", "Order Up", "Origin Pulse", "Outrage", "Overdrive", "Overheat", "Pain Split", "Parabolic Charge", "Parting Shot", "Pay Day", "Payback", "Peck", "Perish Song", "Petal Blizzard", "Petal Dance", "Phantom Force", "Photon Geyser", "Pin Missile", "Plasma Fists", "Play Nice", "Play Rough", "Pluck", "Poison Fang", "Poison Gas", "Poison Jab", "Poison Powder", "Poison Sting", "Poison Tail", "Pollen Puff", "Poltergeist", "Population Bomb", "Pounce", "Pound", "Powder", "Powder Snow", "Power Gem", "Power Shift", "Power Split", "Power Swap", "Power Trick", "Power Trip", "Power Whip", "Power-Up Punch", "Precipice Blades", "Present", "Prismatic Laser", "Protect", "Psybeam", "Psyblade", "Psych Up", "Psychic", "Psychic Fangs", "Psychic Noise", "Psychic Terrain", "Psycho Boost", "Psycho Cut", "Psycho Shift", "Psyshield Bash", "Psyshock", "Psystrike", "Psywave", "Punishment", "Purify", "Pursuit", "Pyro Ball", "Quash", "Quick Attack", "Quick Guard", "Quiver Dance", "Rage", "Rage Fist", "Rage Powder", "Raging Bull", "Raging Fury", "Rain Dance", "Rapid Spin", "Razor Leaf", "Razor Shell", "Razor Wind", "Recover", "Recycle", "Reflect", "Reflect Type", "Refresh", "Relic Song", "Rest", "Retaliate", "Return", "Revelation Dance", "Revenge", "Reversal", "Revival Blessing", "Rising Voltage", "Roar", "Roar of Time", "Rock Blast", "Rock Climb", "Rock Polish", "Rock Slide", "Rock Smash", "Rock Throw", "Rock Tomb", "Rock Wrecker", "Role Play", "Rolling Kick", "Rollout", "Roost", "Rototiller", "Round", "Ruination", "Sacred Fire", "Sacred Sword", "Safeguard", "Salt Cure", "Sand Attack", "Sand Tomb", "Sandsear Storm", "Sandstorm", "Scald", "Scale Shot", "Scary Face", "Scorching Sands", "Scratch", "Screech", "Searing Shot", "Secret Power", "Secret Sword", "Seed Bomb", "Seed Flare", "Seismic Toss", "Self-Destruct", "Shadow Ball", "Shadow Bone", "Shadow Claw", "Shadow Force", "Shadow Punch", "Shadow Sneak", "Sharpen", "Shed Tail", "Sheer Cold", "Shell Side Arm", "Shell Smash", "Shell Trap", "Shelter", "Shift Gear", "Shock Wave", "Shore Up", "Signal Beam", "Silk Trap", "Silver Wind", "Simple Beam", "Sing", "Sketch", "Skill Swap", "Skitter Smack", "Skull Bash", "Sky Attack", "Sky Drop", "Sky Uppercut", "Slack Off", "Slam", "Slash", "Sleep Powder", "Sleep Talk", "Sludge", "Sludge Bomb", "Sludge Wave", "Smack Down", "Smart Strike", "Smelling Salts", "Smog", "Smokescreen", "Snap Trap", "Snarl", "Snatch", "Snipe Shot", "Snore", "Snowscape", "Soak", "Soft-Boiled", "Solar Beam", "Solar Blade", "Sonic Boom", "Spacial Rend", "Spark", "Sparkling Aria", "Spectral Thief", "Speed Swap", "Spicy Extract", "Spider Web", "Spike Cannon", "Spikes", "Spiky Shield", "Spin Out", "Spirit Break", "Spirit Shackle", "Spit Up", "Spite", "Splash", "Spore", "Spotlight", "Springtide Storm", "Stealth Rock", "Steam Eruption", "Steamroller", "Steel Beam", "Steel Roller", "Steel Wing", "Sticky Web", "Stockpile", "Stomp", "Stomping Tantrum", "Stone Axe", "Stone Edge", "Stored Power", "Storm Throw", "Strange Steam", "Strength", "Strength Sap", "String Shot", "Struggle", "Struggle Bug", "Stuff Cheeks", "Stun Spore", "Submission", "Substitute", "Sucker Punch", "Sunny Day", "Sunsteel Strike", "Super Fang", "Supercell Slam", "Superpower", "Supersonic", "Surf", "Surging Strikes", "Swagger", "Swallow", "Sweet Kiss", "Sweet Scent", "Swift", "Switcheroo", "Swords Dance", "Synchronoise", "Synthesis", "Syrup Bomb", "Tachyon Cutter", "Tackle", "Tail Glow", "Tail Slap", "Tail Whip", "Tailwind", "Take Down", "Take Heart", "Tar Shot", "Taunt", "Tearful Look", "Teatime", "Techno Blast", "Teeter Dance", "Telekinesis", "Teleport", "Temper Flare", "Tera Blast", "Tera Starstorm", "Terrain Pulse", "Thief", "Thousand Arrows", "Thousand Waves", "Thrash", "Throat Chop", "Thunder", "Thunder Cage", "Thunder Fang", "Thunder Punch", "Thunder Shock", "Thunder Wave", "Thunderbolt", "Thunderclap", "Thunderous Kick", "Tickle", "Tidy Up", "Topsy-Turvy", "Torch Song", "Torment", "Toxic", "Toxic Spikes", "Toxic Thread", "Trailblaze", "Transform", "Tri Attack", "Trick", "Trick Room", "Trick-or-Treat", "Triple Arrows", "Triple Axel", "Triple Dive", "Triple Kick", "Trop Kick", "Trump Card", "Twin Beam", "Twineedle", "Twister", "U-Turn", "Upper Hand", "Uproar", "V-Create", "Vacuum Wave", "Venom Drench", "Venoshock", "Victory Dance", "Vine Whip", "Vise Grip", "Vital Throw", "Volt Switch", "Volt Tackle", "Wake-Up Slap", "Water Gun", "Water Pledge", "Water Pulse", "Water Shuriken", "Water Sport", "Water Spout", "Waterfall", "Wave Crash", "Weather Ball", "Whirlpool", "Whirlwind", "Wicked Blow", "Wicked Torque", "Wide Guard", "Wild Charge", "Wildbolt Storm", "Will-O-Wisp", "Wing Attack", "Wish", "Withdraw", "Wonder Room", "Wood Hammer", "Work Up", "Worry Seed", "Wrap", "Wring Out", "X-Scissor", "Yawn", "Zap Cannon", "Zen Headbutt", "Zing Zap"], "abilities": ["Ability Shield", "Adaptability", "Aerilate", "Aftermath", "Air Lock", "Air Slash", "Analytic", "Anger Point", "Anger Shell", "Anticipation", "Arena Trap", "Armor Tail", "Aroma Veil", "As One", "Aura Break", "Bad Dreams", "Ball Fetch", "Battery", "Battle Armor", "Battle Bond", "Beads of Ruin", "Beast Boost", "Berserk", "Big Pecks", "Blaze", "Blizzard", "Booster Energy", "Bulletproof", "Cheek Pouch", "Chilling Neigh", "Chlorophyll", "Clear Amulet", "Clear Body", "Cloud Nine", "Color Change", "Comatose", "Commander", "Competitive", "Compound Eyes", "Contrary", "Corrosion", "Costar", "Cotton Down", "Covert Cloak", "Cud Chew", "Curious Medicine", "Cursed Body", "Cute Charm", "Damp", "Dancer", "Dark Aura", "Dauntless Shield", "Dazzling", "Defeatist", "Defiant", "Delta Stream", "Desolate Land", "Disguise", "Download", "Dragon's Maw", "Dragonize", "Drizzle", "Drought", "Dry Skin", "Early Bird", "Earth Eater", "Eelevate", "Effect Spore", "Electric Surge", "Electromorphosis", "Embody Aspect", "Emergency Exit", "Fairy Aura", "Filter", "Fire Mane", "Flame Body", "Flare Boost", "Flash Fire", "Flower Gift", "Flower Veil", "Fluffy", "Forecast", "Forewarn", "Friend Guard", "Frisk", "Full Metal Body", "Fur Coat", "Gale Wings", "Galvanize", "Gluttony", "Good as Gold", "Gooey", "Gorilla Tactics", "Grass Pelt", "Grassy Surge", "Grim Neigh", "Guard Dog", "Gulp Missile", "Guts", "Hadron Engine", "Harvest", "Healer", "Healing Rain", "Heatproof", "Heavy Metal", "Honey Gather", "Hospitality", "Huge Power", "Hunger Switch", "Hustle", "Hydration", "Hydro Pump", "Hyper Cutter", "Ice Body", "Ice Face", "Ice Scales", "Illuminate", "Illusion", "Immunity", "Imposter", "Infiltrator", "Innards Out", "Inner Focus", "Insomnia", "Intimidate", "Intrepid Sword", "Iron Barbs", "Iron Fist", "Justified", "Keen Eye", "Klutz", "Leaf Guard", "Leaf Storm", "Levitate", "Libero", "Light Metal", "Lightning Rod", "Limber", "Lingering Aroma", "Liquid Ooze", "Liquid Voice", "Loaded Dice", "Long Reach", "Magic Bounce", "Magic Guard", "Magician", "Magma Armor", "Magnet Pull", "Marvel Scale", "Mega Launcher", "Mega Sol", "Merciless", "Mimicry", "Mind's Eye", "Minus", "Mirror Armor", "Mirror Herb", "Misty Surge", "Mold Breaker", "Moody", "Motor Drive", "Moxie", "Multiscale", "Multitype", "Mummy", "Mycelium Might", "Natural Cure", "Neuroforce", "Neutralizing Gas", "No Guard", "Normalize", "Oblivious", "Opportunist", "Orichalcum Pulse", "Overcoat", "Overgrow", "Overheat", "Own Tempo", "Paper Thin", "Parental Bond", "Pastel Veil", "Perish Body", "Pickpocket", "Pickup", "Piercing Drill", "Pixilate", "Plus", "Poison Heal", "Poison Point", "Poison Puppeteer", "Poison Touch", "Power Construct", "Power Spot", "Power of Alchemy", "Prankster", "Pressure", "Primordial Sea", "Prism Armor", "Propeller Tail", "Protean", "Protosynthesis", "Psychic Surge", "Punching Glove", "Punk Rock", "Pure Power", "Purifying Salt", "Quark Drive", "Queenly Majesty", "Quick Draw", "Quick Feet", "RKS System", "Rain Dish", "Rattled", "Receiver", "Reckless", "Refrigerate", "Regenerator", "Ripen", "Rivalry", "Rock Head", "Rocky Payload", "Rough Skin", "Run Away", "Sand Force", "Sand Rush", "Sand Spit", "Sand Stream", "Sand Veil", "Sap Sipper", "Schooling", "Scrappy", "Screen Cleaner", "Seed Sower", "Serene Grace", "Shadow Shield", "Shadow Tag", "Sharpness", "Shed Skin", "Sheer Force", "Shell Armor", "Shield Dust", "Shields Down", "Simple", "Skill Link", "Slow Start", "Slush Rush", "Sniper", "Snow Cloak", "Snow Warning", "Solar Power", "Solid Rock", "Soul-Heart", "Soundproof", "Speed Boost", "Spicy Spray", "Stakeout", "Stall", "Stalwart", "Stamina", "Stance Change", "Static", "Steadfast", "Steam Engine", "Steelworker", "Steely Spirit", "Stench", "Sticky Hold", "Storm Drain", "Strong Jaw", "Sturdy", "Suction Cups", "Super Luck", "Supersweet Syrup", "Supreme Overlord", "Surge Surfer", "Swarm", "Sweet Veil", "Swift Swim", "Sword of Ruin", "Symbiosis", "Synchronize", "Tablets of Ruin", "Tangled Feet", "Tangling Hair", "Technician", "Telepathy", "Tera Shell", "Tera Shift", "Teraform Zero", "Teravolt", "Thermal Exchange", "Thick Fat", "Tinted Lens", "Torrent", "Tough Claws", "Toxic Boost", "Toxic Chain", "Toxic Debris", "Trace", "Transformer", "Transistor", "Triage", "Truant", "Turboblaze", "Unaware", "Unburden", "Unnerve", "Unseen Fist", "Vessel of Ruin", "Victory Star", "Vital Spirit", "Volt Absorb", "Wandering Spirit", "Water Absorb", "Water Bubble", "Water Compaction", "Water Veil", "Weak Armor", "Well-Baked Body", "White Smoke", "Wimp Out", "Wind Power", "Wind Rider", "Wonder Guard", "Wonder Skin", "Zen Mode", "Zero to Hero"], "items": ["Ability Shield", "Absorb Bulb", "Adamant Orb", "Aguav Berry", "Air Balloon", "Apicot Berry", "Arceus Plate", "Aspear Berry", "Assault Vest", "Babiri Berry", "Big Root", "Black Belt", "Black Glasses", "Black Sludge", "Blue Orb", "Blunder Policy", "Booster Energy", "Bright Powder", "Bug Gem", "Cell Battery", "Charcoal", "Charti Berry", "Cheri Berry", "Chesto Berry", "Chilan Berry", "Choice Band", "Choice Scarf", "Choice Specs", "Chople Berry", "Clear Amulet", "Coba Berry", "Colbur Berry", "Covert Cloak", "Cristal-Z", "Custap Berry", "DNA Splicer", "Damp Rock", "Dark Gem", "Deep Sea Scale", "Deep Sea Tooth", "Dragon Fang", "Dragon Gem", "Eject Button", "Eject Pack", "Electric Gem", "Electric Seed", "Enigma Berry", "Everstone", "Eviolite", "Fairy Feather", "Fairy Gem", "Fighting Gem", "Figy Berry", "Fire Gem", "Flame Orb", "Float Stone", "Flying Gem", "Focus Band", "Focus Sash", "Ganlon Berry", "Genesect Drives", "Ghost Gem", "Gracidea", "Grass Gem", "Grassy Seed", "Grepa Berry", "Griseous Orb", "Ground Gem", "Haban Berry", "Hard Stone", "Heat Rock", "Heavy-Duty Boots", "Hondew Berry", "Iapapa Berry", "Ice Gem", "Icy Rock", "Iron Ball", "Kasib Berry", "Kebia Berry", "Kee Berry", "Kelpsy Berry", "King's Rock", "Lagging Tail", "Lansat Berry", "Leftovers", "Leppa Berry", "Liechi Berry", "Life Orb", "Light Ball", "Light Clay", "Loaded Dice", "Lucky Egg", "Lucky Punch", "Lum Berry", "Luminous Moss", "Lustrous Orb", "Magnet", "Mago Berry", "Maranga Berry", "Mega Pedra", "Memory Disc", "Mental Herb", "Metal Coat", "Metal Powder", "Micle Berry", "Miracle Seed", "Mirror Herb", "Misty Seed", "Muscle Band", "Mystic Water", "N-Lunarizer", "N-Solarizer", "Never-Melt Ice", "Normal Gem", "Occa Berry", "Oran Berry", "Passho Berry", "Payapa Berry", "Pecha Berry", "Persim Berry", "Petaya Berry", "Poison Barb", "Poison Gem", "Pomeg Berry", "Power Herb", "Prison Bottle", "Psychic Gem", "Psychic Seed", "Punching Glove", "Qualot Berry", "Quick Claw", "Rawst Berry", "Razor Claw", "Razor Fang", "Razz Berry", "Red Orb", "Reins of Unity", "Reveal Glass", "Rindo Berry", "Rock Gem", "Rocky Helmet", "Roseli Berry", "Rusted Shield", "Rusted Sword", "Safety Goggles", "Salac Berry", "Scope Lens", "Sharp Beak", "Shed Shell", "Shell Bell", "Shuca Berry", "Silk Scarf", "Silver Powder", "Sitrus Berry", "Smoke Ball", "Smooth Rock", "Snowball", "Soft Sand", "Soothe Bell", "Soul Dew", "Spell Tag", "Starf Berry", "Steel Gem", "Stick", "Tanga Berry", "Terrain Extender", "Thick Club", "Throat Spray", "Tomato Berry", "Toxic Orb", "Twisted Spoon", "Utility Umbrella", "Wacan Berry", "Water Gem", "Weakness Policy", "White Herb", "Wide Lens", "Wiki Berry", "Wise Glasses", "Yache Berry"], "tms": {"1": "Acid Spray", "2": "Acrobatics", "3": "Aerial Ace", "4": "After You", "5": "Agility", "6": "Air Cutter", "7": "Air Slash", "8": "Alluring Voice", "9": "Ally Switch", "10": "Amnesia", "11": "Aqua Tail", "12": "Assurance", "13": "Attract", "14": "Aura Sphere", "15": "Aurora Veil", "16": "Avalanche", "17": "Baby-Doll Eyes", "18": "Baton Pass", "19": "Beat Up", "20": "Bind", "21": "Blast Burn", "22": "Blizzard", "23": "Block", "24": "Body Press", "25": "Body Slam", "26": "Bounce", "27": "Brave Bird", "28": "Breaking Swipe", "29": "Brick Break", "30": "Brine", "31": "Brutal Swing", "32": "Bug Bite", "33": "Bug Buzz", "34": "Bulk Up", "35": "Bulldoze", "36": "Bullet Seed", "37": "Burning Jealousy", "38": "Calm Mind", "39": "Charge", "40": "Charge Beam", "41": "Charm", "42": "Chilling Water", "43": "Close Combat", "44": "Coaching", "45": "Confide", "46": "Confuse Ray", "47": "Corrosive Gas", "48": "Covet", "49": "Cross Poison", "50": "Crunch", "51": "Curse", "52": "Dark Pulse", "53": "Dazzling Gleam", "54": "Defog", "55": "Dig", "56": "Disarming Voice", "57": "Dive", "58": "Double Team", "59": "Double-Edge", "60": "Draco Meteor", "61": "Dragon Ascent", "62": "Dragon Cheer", "63": "Dragon Claw", "64": "Dragon Dance", "65": "Dragon Pulse", "66": "Dragon Tail", "67": "Drain Punch", "68": "Draining Kiss", "69": "Dream Eater", "70": "Drill Run", "71": "Dual Chop", "72": "Dual Wingbeat", "73": "Earth Power", "74": "Earthquake", "75": "Echoed Voice", "76": "Eerie Impulse", "77": "Electric Terrain", "78": "Electro Ball", "79": "Electroweb", "80": "Embargo", "81": "Encore", "82": "Endeavor", "83": "Endure", "84": "Energy Ball", "85": "Expanding Force", "86": "Explosion", "87": "Facade", "88": "Fake Tears", "89": "False Swipe", "90": "Feather Dance", "91": "Fire Blast", "92": "Fire Fang", "93": "Fire Pledge", "94": "Fire Punch", "95": "Fire Spin", "96": "Flame Charge", "97": "Flamethrower", "98": "Flare Blitz", "99": "Flash Cannon", "100": "Fling", "101": "Flip Turn", "102": "Fly", "103": "Focus Blast", "104": "Focus Energy", "105": "Focus Punch", "106": "Foul Play", "107": "Frenzy Plant", "108": "Frost Breath", "109": "Frustration", "110": "Future Sight", "111": "Gastro Acid", "112": "Giga Drain", "113": "Giga Impact", "114": "Grass Knot", "115": "Grass Pledge", "116": "Grassy Glide", "117": "Grassy Terrain", "118": "Gravity", "119": "Guard Swap", "120": "Gunk Shot", "121": "Gyro Ball", "122": "Hail", "123": "Hard Press", "124": "Haze", "125": "Heal Bell", "126": "Heat Crash", "127": "Heat Wave", "128": "Heavy Slam", "129": "Helping Hand", "130": "Hex", "131": "Hidden Power", "132": "High Horsepower", "133": "Hurricane", "134": "Hydro Cannon", "135": "Hydro Pump", "136": "Hyper Beam", "137": "Hyper Voice", "138": "Ice Ball", "139": "Ice Beam", "140": "Ice Fang", "141": "Ice Punch", "142": "Ice Spinner", "143": "Icicle Spear", "144": "Icy Wind", "145": "Imprison", "146": "Infestation", "147": "Iron Defense", "148": "Iron Head", "149": "Iron Tail", "150": "Knock Off", "151": "Laser Focus", "152": "Lash Out", "153": "Last Resort", "154": "Leaf Storm", "155": "Leech Life", "156": "Light Screen", "157": "Liquidation", "158": "Low Kick", "159": "Low Sweep", "160": "Lunge", "161": "Magic Coat", "162": "Magic Room", "163": "Magical Leaf", "164": "Magnet Rise", "165": "Mega Kick", "166": "Mega Punch", "167": "Megahorn", "168": "Metal Claw", "169": "Metal Sound", "170": "Meteor Beam", "171": "Metronome", "172": "Misty Explosion", "173": "Misty Terrain", "174": "Mud Shot", "175": "Mud-Slap", "176": "Muddy Water", "177": "Mystical Fire", "178": "Nasty Plot", "179": "Nature Power", "180": "Night Shade", "181": "Ominous Wind", "182": "Outrage", "183": "Overheat", "184": "Pain Split", "185": "Pay Day", "186": "Payback", "187": "Petal Blizzard", "188": "Phantom Force", "189": "Pin Missile", "190": "Play Rough", "191": "Poison Jab", "192": "Poison Tail", "193": "Pollen Puff", "194": "Poltergeist", "195": "Pounce", "196": "Power Gem", "197": "Power Shift", "198": "Power Swap", "199": "Protect", "200": "Psybeam", "201": "Psych Up", "202": "Psychic", "203": "Psychic Fangs", "204": "Psychic Noise", "205": "Psychic Terrain", "206": "Psycho Cut", "207": "Psyshock", "208": "Quash", "209": "Rain Dance", "210": "Razor Shell", "211": "Recycle", "212": "Reflect", "213": "Relic Song", "214": "Rest", "215": "Retaliate", "216": "Return", "217": "Revenge", "218": "Reversal", "219": "Rising Voltage", "220": "Roar", "221": "Rock Blast", "222": "Rock Polish", "223": "Rock Slide", "224": "Rock Smash", "225": "Rock Tomb", "226": "Role Play", "227": "Roost", "228": "Round", "229": "Safeguard", "230": "Sand Tomb", "231": "Sandstorm", "232": "Scald", "233": "Scale Shot", "234": "Scary Face", "235": "Scorching Sands", "236": "Screech", "237": "Secret Sword", "238": "Seed Bomb", "239": "Self-Destruct", "240": "Shadow Ball", "241": "Shadow Claw", "242": "Shock Wave", "243": "Signal Beam", "244": "Skill Swap", "245": "Skitter Smack", "246": "Sky Attack", "247": "Sky Drop", "248": "Sleep Talk", "249": "Sludge Bomb", "250": "Sludge Wave", "251": "Smack Down", "252": "Smart Strike", "253": "Snarl", "254": "Snatch", "255": "Snore", "256": "Snowscape", "257": "Solar Beam", "258": "Solar Blade", "259": "Speed Swap", "260": "Spikes", "261": "Spite", "262": "Stealth Rock", "263": "Steel Beam", "264": "Steel Roller", "265": "Steel Wing", "266": "Stomping Tantrum", "267": "Stone Edge", "268": "Stored Power", "269": "Struggle Bug", "270": "Substitute", "271": "Sunny Day", "272": "Super Fang", "273": "Supercell Slam", "274": "Superpower", "275": "Surf", "276": "Swagger", "277": "Swift", "278": "Swords Dance", "279": "Synthesis", "280": "Tail Slap", "281": "Tailwind", "282": "Take Down", "283": "Taunt", "284": "Telekinesis", "285": "Temper Flare", "286": "Tera Blast", "287": "Terrain Pulse", "288": "Thief", "289": "Throat Chop", "290": "Thunder", "291": "Thunder Fang", "292": "Thunder Punch", "293": "Thunder Wave", "294": "Thunderbolt", "295": "Torment", "296": "Toxic", "297": "Toxic Spikes", "298": "Trailblaze", "299": "Tri Attack", "300": "Trick", "301": "Trick Room", "302": "Triple Axel", "303": "U-turn", "304": "Upper Hand", "305": "Uproar", "306": "Vacuum Wave", "307": "Venoshock", "308": "Volt Switch", "309": "Volt Tackle", "310": "Water Pledge", "311": "Water Pulse", "312": "Waterfall", "313": "Weather Ball", "314": "Whirlpool", "315": "Wild Charge", "316": "Will-O-Wisp", "317": "Wonder Room", "318": "Work Up", "319": "Worry Seed", "320": "X-Scissor", "321": "Zen Headbutt", "999": "Error"}, "max_index": 1025}</script>
+<script>
+"use strict";
+// ======================================================================
+// SERVIDOR DO PMP (fakemon-server/worker.js). Troque pelo endereço do Worker.
+// ======================================================================
+const SERVER_URL = "https://pmp-fakemon.caladokeven.workers.dev";
+// ======================================================================
+// DADOS FIXOS DO APP
+// ======================================================================
+const LISTS = JSON.parse(document.getElementById("lists").textContent);
+const TYPES = [["Normal","Normal"],["Fire","Fogo"],["Water","Água"],["Grass","Grama"],["Electric","Elétrico"],["Ice","Gelo"],["Fighting","Lutador"],["Poison","Venenoso"],["Ground","Terra"],["Flying","Voador"],["Psychic","Psíquico"],["Bug","Inseto"],["Rock","Pedra"],["Ghost","Fantasma"],["Dragon","Dragão"],["Dark","Sombrio"],["Steel","Aço"],["Fairy","Fada"]];
+const TYPE_PT = Object.fromEntries(TYPES);
+const ATTRS = [["STR","FOR"],["DEX","DES"],["CON","CON"],["INT","INT"],["WIS","SAB"],["CHA","CAR"]];
+const SKILLS = [["Acrobatics","Acrobacia"],["Animal Handling","Lidar com Animais"],["Arcana","Arcanismo"],["Athletics","Atletismo"],["Deception","Enganação"],["History","História"],["Insight","Intuição"],["Intimidation","Intimidação"],["Investigation","Investigação"],["Medicine","Medicina"],["Nature","Natureza"],["Perception","Percepção"],["Performance","Atuação"],["Persuasion","Persuasão"],["Religion","Religião"],["Sleight of Hand","Prestidigitação"],["Stealth","Furtividade"],["Survival","Sobrevivência"]];
+const SKILL_PT = Object.fromEntries(SKILLS);
+const SIZES = ["Miúdo","Pequeno","Médio","Grande","Enorme","Imenso"];
+const SR_LIST = [0.125,0.25,0.5,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
+const SENSES = [["Darkvision","Visão no escuro"],["Blindsight","Percepção às cegas"],["Tremorsense","Sentido sísmico"],["Truesight","Visão verdadeira"]];
+const TM_BY_NAME = {}; for (const [n, m] of Object.entries(LISTS.tms)) TM_BY_NAME[m] = Number(n);
+const FIRST_INDEX = Math.max(2000, LISTS.max_index + 1);
+
+const CONDITIONS = [["","Sempre"],["any_status","Com Condição de Status"],["poisoned","Envenenado"],["burning","Queimado"],["low_hp","PV abaixo de 1/3"],["half_hp","PV em 50% ou menos"]];
+const SPECIALS = [["","Qualquer Move"],["punch","Moves de soco"],["bite","Moves de mordida"],["sound","Moves de som"],["recoil","Moves com recuo"],["technician","Dano máximo até 30 (nível 17)"],["stab","Moves com STAB"]];
+const AMOUNT_OPTS = [["","Nenhum"],["prof","+ bônus de proficiência"],["prof_double","+ 2× proficiência"],["-prof","− bônus de proficiência"],["-prof_double","− 2× proficiência"],["num","Número fixo"]];
+
+// ======================================================================
+// TEMA (claro = PMP original, escuro = modo escuro do app)
+// ======================================================================
+const THEME_KEY = "pmp-fakemon-theme";
+function applyTheme(t) { if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme"); }
+try { applyTheme(localStorage.getItem(THEME_KEY)); } catch (e) {}
+function isDark() { const t = document.documentElement.getAttribute("data-theme"); return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; }
+function themeLabel() { document.getElementById("btn-theme").textContent = isDark() ? "Tema: escuro" : "Tema: claro (PMP)"; }
+
+// ======================================================================
+// ESTADO (salvo no navegador como rascunho)
+// ======================================================================
+const DRAFT_KEY = "pmp-fakemon-draft-v1";
+function blankPack() {
+  return { meta: { name: "", author: "", version: "1.0", description: "" }, pokemon: [], moves: [], abilities: [], items: [] };
+}
+let state = loadDraft() || examplePack();
+let tab = "pokemon";
+let sel = { pokemon: 0, moves: 0, abilities: 0, items: 0 };
+
+function loadDraft() {
+  try { const raw = localStorage.getItem(DRAFT_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+let saveTimer = null;
+function saveDraft() {
+  clearTimeout(saveTimer);
+  setStatus("Salvando…");
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(state)); setStatus("Rascunho salvo neste navegador"); }
+    catch (e) { setStatus("Não deu pra salvar o rascunho (imagens grandes demais?)"); }
+  }, 300);
+}
+function setStatus(t) { const s = document.getElementById("status"); if (s) s.textContent = t; }
+
+function newPokemon(pack) {
+  const used = new Set((pack || state).pokemon.map(p => Number(p.index)));
+  let idx = FIRST_INDEX; while (used.has(idx)) idx++;
+  return { name: "", index: idx, types: ["Normal"], size: "Médio", height: 1.0, weight: 30, genus: "", flavor: "",
+    ac: 12, hp: 15, hitDice: 8, sr: 1, minLevel: 1, attrs: { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 },
+    wsp: 30, ssp: 0, fsp: 0, csp: 0, bsp: 0, senses: {}, skills: [], abilities: [], hidden: "",
+    startMoves: [], levelMoves: [], tmMoves: [], eggMoves: [], evolveTo: "", evolveLevel: 0, evolvePoints: 0,
+    stage: 1, stages: 1, gender: "3", sprite: null, icon: null };
+}
+function newMove() {
+  return { name: "", type: "Normal", power: ["STR"], time: "1 ação", pp: 10, duration: "Instantânea", range: "Corpo a corpo",
+    roll: "atk", save: "DEX", damage: { on: true, move: true, d1: [1, 6], d5: [1, 8], d10: [2, 6], d17: [2, 8] },
+    description: "", scaling: "", effects: [] };
+}
+function newAbility() { return { name: "", description: "", effects: [] }; }
+function newItem() { return { name: "", effect: "", effects: [] }; }
+
+function examplePack() {
+  const s = blankPack();
+  s.meta = { name: "Exemplo: Fakemons de Teste", author: "Seu nome", version: "1.0", description: "Pacote de exemplo. Apague e crie o seu." };
+  const p = newPokemon(s);
+  Object.assign(p, { name: "Brasamander", types: ["Fire", "Dragon"], size: "Pequeno", height: 0.7, weight: 9.5, genus: "O Pokémon Brasa",
+    flavor: "Exemplo de Fakemon. A chama da cauda fica azul quando ele está calmo.", ac: 13, hp: 18, hitDice: 8, sr: 1,
+    attrs: { STR: 12, DEX: 14, CON: 12, INT: 8, WIS: 10, CHA: 10 }, skills: ["Acrobatics"], abilities: ["Chama Viva"], hidden: "Blaze",
+    startMoves: ["Scratch", "Growl"], levelMoves: [{ level: 3, moves: ["Ember"] }, { level: 6, moves: ["Brasa Dupla"] }], tmMoves: ["Flamethrower"], eggMoves: ["Dragon Rage"] });
+  s.pokemon.push(p);
+  const m = newMove();
+  Object.assign(m, { name: "Brasa Dupla", type: "Fire", range: "30 pés (9 metros)", roll: "atk", power: ["DEX"],
+    description: "Você cospe duas brasas em uma criatura no alcance. Faça um ataque à distância, causando 1d8 + MOVE de dano de fogo em um acerto.",
+    scaling: "Os dados de dano mudam para 1d10 no nível 5, 2d8 no nível 10 e 2d10 no nível 17.",
+    damage: { on: true, move: true, d1: [1, 8], d5: [1, 10], d10: [2, 8], d17: [2, 10] } });
+  s.moves.push(m);
+  const a = newAbility();
+  Object.assign(a, { name: "Chama Viva", description: "Os Moves do tipo Fogo deste Pokémon rolam os dados de dano duas vezes, mantendo o maior resultado.",
+    effects: [{ kind: "amp", points: 1, types: ["Fire"], range: "", condition: "", special: "", moves: "", contains: "", activatable: false, label: "Chama Viva (Fogo)" }] });
+  s.abilities.push(a);
+  return s;
+}
+
+// ======================================================================
+// UTILITÁRIOS DE INTERFACE
+// ======================================================================
+const $ = (q, root = document) => root.querySelector(q);
+function h(tag, attrs = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return el;
+}
+let uid = 0; const nid = p => `${p}-${++uid}`;
+function toast(text) { const t = $("#toast"); t.textContent = text; t.classList.add("show"); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 2200); }
+
+// Controle ligado a obj[key]
+function control(obj, key, opts = {}) {
+  let input;
+  const set = v => { obj[key] = v; saveDraft(); if (opts.onchange) opts.onchange(v); };
+  if (opts.options) {
+    input = h("select", { id: opts.id, "aria-label": opts.aria }, opts.options.map(([v, t]) => h("option", { value: v, selected: String(obj[key] ?? "") === String(v) }, t)));
+    input.addEventListener("change", () => set(opts.number ? Number(input.value) : input.value));
+  } else if (opts.textarea) {
+    input = h("textarea", { id: opts.id, placeholder: opts.placeholder || "", "aria-label": opts.aria }); input.value = obj[key] || "";
+    input.addEventListener("input", () => set(input.value));
+  } else {
+    input = h("input", { id: opts.id, type: opts.number ? "number" : "text", step: opts.step || (opts.number ? "1" : null), min: opts.min, max: opts.max, list: opts.list, placeholder: opts.placeholder || "", "aria-label": opts.aria });
+    input.value = obj[key] ?? "";
+    input.addEventListener("input", () => set(opts.number ? (input.value === "" ? 0 : Number(input.value)) : input.value));
+  }
+  return input;
+}
+// Linhas "rótulo | campo" para .form / .form2
+function rows(...defs) {
+  const out = [];
+  for (const [label, obj, key, opts] of defs) { const id = nid("f"); out.push(h("label", { class: "lbl", for: id }, label), control(obj, key, { ...(opts || {}), id })); }
+  return out;
+}
+// Campo com rótulo em cima (usado nas automações)
+function field(label, obj, key, opts = {}) {
+  const id = nid("f");
+  return h("label", { class: "lbl-top", for: id, style: "display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted);min-width:0" }, label, control(obj, key, { ...opts, id }));
+}
+
+// Lista no estilo do programa: caixa com os itens + campo de adicionar embaixo
+function listBox(title, arr, opts = {}) {
+  const box = h("div", { class: "lb" + (opts.big ? " big" : "") + (opts.tall ? " tall" : "") });
+  const rowsEl = h("div", { class: "lb-box", role: "list" });
+  const show = v => opts.display ? opts.display(v) : v;
+  const isCustom = v => opts.source ? opts.source().custom.has(v) : false;
+  const render = () => {
+    rowsEl.replaceChildren(...arr.map((n, i) => h("div", { class: "lb-row" + (isCustom(n) ? " custom" : ""), role: "listitem" }, h("span", {}, show(n)),
+      h("button", { title: "Remover " + show(n), "aria-label": "Remover " + show(n), onclick: () => { arr.splice(i, 1); saveDraft(); render(); } }, "×"))));
+  };
+  let adder;
+  if (opts.options) {
+    const s = h("select", { "aria-label": "Adicionar em " + title }, h("option", { value: "" }, "Adicionar…"), opts.options.map(([v, t]) => h("option", { value: v }, t)));
+    s.addEventListener("change", () => { if (s.value && !arr.includes(s.value)) { arr.push(s.value); saveDraft(); render(); } s.value = ""; });
+    adder = h("div", { class: "lb-add", style: "grid-template-columns:minmax(0,1fr)" }, s);
+  } else {
+    const listId = nid("dl");
+    const input = h("input", { list: listId, placeholder: "Digite e aperte Enter", "aria-label": "Adicionar em " + title });
+    const add = () => { const v = input.value.trim(); if (v && !arr.includes(v)) { arr.push(v); saveDraft(); render(); } input.value = ""; };
+    input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); add(); } });
+    input.addEventListener("change", () => { if (opts.source && opts.source().all.includes(input.value.trim())) add(); });
+    const dl = h("datalist", { id: listId }, (opts.source ? opts.source().all : []).map(n => h("option", { value: n })));
+    adder = h("div", { class: "lb-add" }, input, h("button", { class: "btn", onclick: add, "aria-label": "Adicionar" }, "+"), dl);
+  }
+  render();
+  box.append(h("div", { class: "lb-title" }, opts.titleNode || title, opts.extra || null), rowsEl, adder);
+  return box;
+}
+const moveSource = () => { const custom = new Set(state.moves.map(m => m.name).filter(Boolean)); return { custom, all: [...custom, ...LISTS.moves] }; };
+const abilitySource = () => { const custom = new Set(state.abilities.map(a => a.name).filter(Boolean)); return { custom, all: [...custom, ...LISTS.abilities] }; };
+const tmSource = () => ({ custom: new Set(), all: Object.keys(TM_BY_NAME).sort() });
+
+// ======================================================================
+// ABAS
+// ======================================================================
+const TABS = [["pokemon", "Fakemons"], ["moves", "Moves"], ["abilities", "Habilidades"], ["items", "Itens"], ["pack", "Pacote"], ["export", "Publicar"]];
+function renderTabs() {
+  const counts = { pokemon: state.pokemon.length, moves: state.moves.length, abilities: state.abilities.length, items: state.items.length };
+  const tabs = me && me.admin ? [...TABS, ["admin", "Admin"]] : TABS;
+  $("#tabs").replaceChildren(...tabs.map(([k, t]) => h("button", { role: "tab", "aria-selected": String(tab === k), onclick: () => { tab = k; render(); } },
+    t, counts[k] !== undefined ? h("span", { class: "count" }, " " + counts[k]) : null)));
+  $("#wintitle").textContent = state.meta.name ? state.meta.name : "sem título";
+}
+function render() {
+  renderTabs();
+  const main = $("#main");
+  if (tab === "admin" && !(me && me.admin)) tab = "pokemon";
+  main.className = "work" + (tab === "pack" || tab === "export" || tab === "admin" ? " single" : "");
+  if (tab === "pack") main.replaceChildren(renderPack());
+  else if (tab === "export") main.replaceChildren(renderExport());
+  else if (tab === "admin") main.replaceChildren(renderAdmin());
+  else main.replaceChildren(...renderCollection(tab));
+}
+
+const LABELS = { pokemon: ["Fakemon", "Lista de Fakemons", "Espécie"], moves: ["Move", "Lista de Moves", "Move"], abilities: ["Habilidade", "Lista de Habilidades", "Habilidade"], items: ["Item", "Lista de Itens", "Item"] };
+function renderCollection(kind) {
+  const arr = state[kind];
+  const [label, listTitle] = LABELS[kind];
+  const maker = { pokemon: newPokemon, moves: newMove, abilities: newAbility, items: newItem }[kind];
+  if (sel[kind] >= arr.length) sel[kind] = Math.max(0, arr.length - 1);
+  const obj = arr[sel[kind]];
+  const side = h("aside", { class: "side" },
+    h("h2", {}, listTitle),
+    h("div", { class: "listbox", role: "listbox", "aria-label": listTitle },
+      arr.length ? arr.map((o, i) => h("button", { class: "row" + (i === sel[kind] ? " on" : ""), role: "option", "aria-selected": String(i === sel[kind]), onclick: () => { sel[kind] = i; render(); } },
+        h("span", {}, o.name || "(sem nome)"), kind === "pokemon" ? h("small", {}, "#" + o.index) : null))
+        : h("p", { class: "empty" }, "Nenhum ainda.")),
+    h("button", { class: "btn primary block", onclick: () => { arr.push(maker(state)); sel[kind] = arr.length - 1; saveDraft(); render(); } }, "+ Novo " + label),
+    obj ? h("button", { class: "btn danger block", onclick: (ev) => {
+      const b = ev.currentTarget;
+      if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Clique de novo para apagar"; setTimeout(() => { if (b.isConnected) { b.textContent = "Apagar " + label.toLowerCase(); delete b.dataset.armed; } }, 3000); return; }
+      arr.splice(sel[kind], 1); saveDraft(); render(); toast(label + " apagado");
+    } }, "Apagar " + label.toLowerCase()) : null);
+  if (kind === "pokemon" && obj) side.append(imageInput(obj, "sprite", 126, 126, "Retrato"), imageInput(obj, "icon", 40, 30, "Ícone"),
+    h("p", { class: "hint" }, "Sem ícone, o pacote usa o retrato reduzido."));
+  const pane = h("section", { class: "pane" });
+  if (!obj) pane.append(h("p", { class: "hint" }, "Crie um pelo botão + Novo " + label + "."));
+  else pane.append({ pokemon: editPokemon, moves: editMove, abilities: editAbility, items: editItem }[kind](obj));
+  return [side, pane];
+}
+
+// Cabeçalho grande "Espécie [nome]"; atualiza a lista e o título ao digitar
+function nameHeader(obj, word, placeholder) {
+  const id = nid("f");
+  const input = control(obj, "name", { id, placeholder, onchange: () => { clearTimeout(nameHeader.t); nameHeader.t = setTimeout(refreshNames, 300); } });
+  return h("div", { class: "species" }, h("label", { for: id }, h("span", {}, word)), input);
+}
+function refreshNames() {
+  renderTabs();
+  const arr = state[tab]; if (!arr) return;
+  document.querySelectorAll("#main .listbox .row").forEach((b, i) => { b.firstChild.textContent = arr[i].name || "(sem nome)"; });
+}
+
+// ======================================================================
+// IMAGENS
+// ======================================================================
+function imageInput(p, key, w, hgt, label) {
+  const canvas = h("canvas", { width: w, height: hgt, style: `width:${key === "icon" ? w * 1.5 : w}px` });
+  const draw = () => {
+    const ctx = canvas.getContext("2d"); ctx.clearRect(0, 0, w, hgt);
+    if (p[key]) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = p[key]; }
+  };
+  const id = nid("img");
+  const input = h("input", { id, type: "file", accept: "image/png,image/jpeg,image/webp", hidden: true });
+  input.addEventListener("change", () => {
+    const f = input.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        // Encaixa no tamanho que o app usa, sem distorcer, com fundo transparente
+        const c = document.createElement("canvas"); c.width = w; c.height = hgt;
+        const ctx = c.getContext("2d"); ctx.imageSmoothingEnabled = true;
+        const s = Math.min(w / img.width, hgt / img.height);
+        const dw = Math.round(img.width * s), dh = Math.round(img.height * s);
+        ctx.drawImage(img, Math.floor((w - dw) / 2), Math.floor((hgt - dh) / 2), dw, dh);
+        p[key] = c.toDataURL("image/png"); if (key === "icon") p.iconAuto = false; saveDraft(); draw();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(f);
+  });
+  draw();
+  return h("div", { class: "imgprev" }, h("span", { class: "cap" }, `${label} (${w}x${hgt})`), canvas,
+    h("label", { class: "btn block", for: id }, "Escolher " + label.toLowerCase()), input,
+    h("button", { class: "btn small", onclick: () => { p[key] = null; saveDraft(); draw(); } }, "Remover"));
+}
+
+// ======================================================================
+// FAKEMON
+// ======================================================================
+function editPokemon(p) {
+  const typeOpts = TYPES.map(([en, pt]) => [en, pt]);
+  const t1 = h("select", { "aria-label": "Tipo 1" }, typeOpts.map(([v, t]) => h("option", { value: v, selected: p.types[0] === v }, t)));
+  const t2 = h("select", { "aria-label": "Tipo 2" }, h("option", { value: "" }, "Nenhum"), typeOpts.map(([v, t]) => h("option", { value: v, selected: p.types[1] === v }, t)));
+  const syncTypes = () => { const a = [t1.value]; if (t2.value && t2.value !== t1.value) a.push(t2.value); p.types.splice(0, p.types.length, ...a); saveDraft(); };
+  t1.addEventListener("change", syncTypes); t2.addEventListener("change", syncTypes);
+
+  const inl = (label, obj, key, opts) => { const id = nid("f"); return h("label", { for: id }, label, control(obj, key, { ...opts, id })); };
+  const top = h("div", { class: "inline" },
+    h("label", {}, "Tipos", t1, t2),
+    inl("SR", p, "sr", { number: true, options: SR_LIST.map(s => [s, s < 1 ? "1/" + Math.round(1 / s) : String(s)]) }),
+    inl("Nível mín.", p, "minLevel", { number: true, min: 1, max: 20 }),
+    inl("Índice #", p, "index", { number: true, min: FIRST_INDEX }),
+    inl("Tamanho", p, "size", { options: SIZES.map(s => [s, s]) }),
+    inl("Gênero", p, "gender", { options: [["3", "Qualquer"], ["0", "Sem gênero"], ["1", "Só macho"], ["2", "Só fêmea"]] }));
+
+  const attrs = h("div", { class: "attrs" }, ATTRS.map(([en, pt]) => { const id = nid("a"); return h("label", { for: id }, pt, control(p.attrs, en, { id, number: true, min: 1, max: 30 })); }));
+
+  const left = h("div", { class: "stack" },
+    attrs,
+    h("div", { class: "form" }, rows(
+      ["Pontos de Vida", p, "hp", { number: true, min: 1 }],
+      ["Classe de Armadura", p, "ac", { number: true, min: 1 }],
+      ["Dado de vida", p, "hitDice", { number: true, options: [6, 8, 10, 12, 20].map(d => [d, "d" + d]) }],
+      ["Habilidade oculta", p, "hidden", { list: "dl-abilities", placeholder: "Opcional" }])),
+    h("datalist", { id: "dl-abilities" }, abilitySource().all.map(n => h("option", { value: n }))),
+    listBox("Habilidades", p.abilities, { big: true, source: abilitySource }),
+    listBox("Perícias", p.skills, { big: true, options: SKILLS, display: v => SKILL_PT[v] || v }),
+    h("div", { class: "lb big" }, h("div", { class: "lb-title" }, "Entrada da Pokédex"), control(p, "flavor", { textarea: true, aria: "Entrada da Pokédex" })),
+    h("div", { class: "form2" }, rows(
+      ["Espécie", p, "genus", { placeholder: "O Pokémon Brasa" }],
+      ["Altura (m)", p, "height", { number: true, step: "0.1", min: 0 }],
+      ["Peso (kg)", p, "weight", { number: true, step: "0.1", min: 0 }])));
+
+  const levels = h("div", { class: "levels" });
+  const renderLevels = () => {
+    levels.replaceChildren(...p.levelMoves.map((row, i) => {
+      const lv = h("input", { type: "number", min: 1, max: 20, value: row.level, "aria-label": "Nível" });
+      lv.addEventListener("input", () => { row.level = Number(lv.value) || 1; saveDraft(); });
+      return listBox("Moves no nível", row.moves, { source: moveSource, tall: true,
+        titleNode: h("span", { class: "lv-head" }, "Moves no nível", lv),
+        extra: h("button", { class: "btn small danger", onclick: () => { p.levelMoves.splice(i, 1); saveDraft(); renderLevels(); } }, "Remover") });
+    }), h("button", { class: "addlevel", onclick: () => { const last = p.levelMoves.length ? p.levelMoves[p.levelMoves.length - 1].level : 1; p.levelMoves.push({ level: Math.min(20, last + 1), moves: [] }); saveDraft(); renderLevels(); } }, "+ Adicionar nível"));
+  };
+  renderLevels();
+
+  const right = h("div", { class: "stack" },
+    h("div", { class: "form2" }, rows(
+      ["Caminhada", p, "wsp", { number: true, min: 0, step: "5" }],
+      [SENSES[0][1], p.senses, SENSES[0][0], { number: true, min: 0, step: "5" }],
+      ["Escalada", p, "csp", { number: true, min: 0, step: "5" }],
+      [SENSES[1][1], p.senses, SENSES[1][0], { number: true, min: 0, step: "5" }],
+      ["Voo", p, "fsp", { number: true, min: 0, step: "5" }],
+      [SENSES[3][1], p.senses, SENSES[3][0], { number: true, min: 0, step: "5" }],
+      ["Natação", p, "ssp", { number: true, min: 0, step: "5" }],
+      [SENSES[2][1], p.senses, SENSES[2][0], { number: true, min: 0, step: "5" }],
+      ["Escavação", p, "bsp", { number: true, min: 0, step: "5" }])),
+    h("p", { class: "hint", style: "margin-top:-8px" }, "Em pés. 0 = não tem."),
+    h("div", { class: "levels" },
+      listBox("Moves iniciais", p.startMoves, { source: moveSource, tall: true }),
+      listBox("TMs que aprende", p.tmMoves, { source: tmSource, tall: true })),
+    levels,
+    listBox("Egg Moves", p.eggMoves, { source: moveSource }));
+
+  const evo = h("div", { class: "form2" }, rows(
+    ["Evolui para", p, "evolveTo", { placeholder: "Vazio = não evolui" }],
+    ["no nível", p, "evolveLevel", { number: true, min: 0, max: 20 }],
+    ["ganha pontos de atributo", p, "evolvePoints", { number: true, min: 0 }],
+    ["Estágio atual", p, "stage", { number: true, min: 1, max: 3 }],
+    ["Total de estágios", p, "stages", { number: true, min: 1, max: 3 }]));
+
+  return h("div", {}, nameHeader(p, "Espécie", "Nome do Fakemon"), top,
+    h("div", { class: "cols" }, left, right),
+    h("h3", { class: "sub" }, "Evolução"), evo,
+    h("p", { class: "hint" }, "Nomes em vermelho são Moves/Habilidades criados neste pacote."));
+}
+
+// ======================================================================
+// MOVES
+// ======================================================================
+function editMove(m) {
+  const powerBox = h("div", { class: "checks" });
+  for (const [en, pt] of ATTRS) {
+    const cb = h("input", { type: "checkbox", checked: m.power.includes(en) });
+    cb.addEventListener("change", () => { if (cb.checked) m.power.push(en); else m.power.splice(m.power.indexOf(en), 1); saveDraft(); });
+    powerBox.append(h("label", { class: "check" }, cb, pt));
+  }
+  const dmg = m.damage;
+  const dmgOn = h("input", { type: "checkbox", checked: dmg.on }); dmgOn.addEventListener("change", () => { dmg.on = dmgOn.checked; saveDraft(); });
+  const dmgMove = h("input", { type: "checkbox", checked: dmg.move }); dmgMove.addEventListener("change", () => { dmg.move = dmgMove.checked; saveDraft(); });
+  const dice = h("div", { class: "dmg" });
+  for (const [lvl, key] of [[1, "d1"], [5, "d5"], [10, "d10"], [17, "d17"]]) {
+    const a = h("input", { type: "number", min: 1, value: dmg[key][0], "aria-label": "Quantidade de dados nível " + lvl });
+    const d = h("select", { "aria-label": "Dado nível " + lvl }, [4, 6, 8, 10, 12].map(x => h("option", { value: x, selected: dmg[key][1] === x }, "d" + x)));
+    a.addEventListener("input", () => { dmg[key][0] = Number(a.value) || 1; saveDraft(); });
+    d.addEventListener("change", () => { dmg[key][1] = Number(d.value); saveDraft(); });
+    dice.append(h("span", { class: "lbl" }, "Nível " + lvl), a, d);
+  }
+  const left = h("div", { class: "stack" },
+    h("div", { class: "form" }, rows(
+      ["Tipo", m, "type", { options: TYPES }],
+      ["Tempo de execução", m, "time", { list: "dl-time" }],
+      ["PP", m, "pp", { number: true, min: 1 }],
+      ["Duração", m, "duration", { list: "dl-duration" }],
+      ["Alcance", m, "range", { list: "dl-range", placeholder: "Corpo a corpo / 30 pés (9 metros)" }],
+      ["Acerto", m, "roll", { options: [["atk", "Rolagem de ataque"], ["save", "Teste de resistência"], ["none", "Nenhum"]] }],
+      ["Teste de resistência", m, "save", { options: ATTRS }])),
+    h("datalist", { id: "dl-time" }, ["1 ação", "1 ação bônus", "1 reação", "1 ação / reação"].map(v => h("option", { value: v }))),
+    h("datalist", { id: "dl-duration" }, ["Instantânea", "1 rodada", "Concentração, até 1 minuto", "Enquanto ativo"].map(v => h("option", { value: v }))),
+    h("datalist", { id: "dl-range" }, ["Corpo a corpo", "Pessoal", "30 pés (9 metros)", "60 pés (18 metros)", "Pessoal (cone de 15 pés / 4,5 metros)"].map(v => h("option", { value: v }))),
+    h("div", {}, h("div", { class: "cap" }, "Poder do Move (nenhum = Move sem poder)"), powerBox),
+    h("div", {}, h("div", { class: "checks", style: "margin-bottom:6px" }, h("label", { class: "check" }, dmgOn, "Causa dano"), h("label", { class: "check" }, dmgMove, "Soma o MOVE no dano")), dice));
+  const right = h("div", { class: "stack" },
+    h("div", { class: "lb big" }, h("div", { class: "lb-title" }, "Descrição"), control(m, "description", { textarea: true, aria: "Descrição" })),
+    h("div", { class: "lb big" }, h("div", { class: "lb-title" }, "Níveis superiores"), control(m, "scaling", { textarea: true, aria: "Níveis superiores", placeholder: "Os dados de dano mudam para ..." })));
+  return h("div", {}, nameHeader(m, "Move", "Nome do Move"),
+    h("div", { class: "cols" }, left, right),
+    h("h3", { class: "sub" }, "Automação"),
+    h("p", { class: "hint" }, "Só se o Move funciona como clima, terreno ou Charge: ganha o botão ATIVAR no popup e muda o dano dos Moves até o fim da batalha."),
+    effectsEditor(m.effects, "move"));
+}
+
+// ======================================================================
+// HABILIDADES E ITENS
+// ======================================================================
+function editAbility(a) {
+  return h("div", {}, nameHeader(a, "Habilidade", "Nome da Habilidade"),
+    h("div", { class: "lb big" }, h("div", { class: "lb-title" }, "Descrição"), control(a, "description", { textarea: true, aria: "Descrição" })),
+    h("h3", { class: "sub" }, "Automações"),
+    h("p", { class: "hint" }, "Se a habilidade funciona igual a alguma regra que o app já calcula, monte aqui. Se não encaixar, deixe só o texto."),
+    effectsEditor(a.effects, "ability"));
+}
+function editItem(it) {
+  return h("div", {}, nameHeader(it, "Item", "Nome do Item"),
+    h("div", { class: "lb big" }, h("div", { class: "lb-title" }, "Efeito"), control(it, "effect", { textarea: true, aria: "Efeito" })),
+    h("h3", { class: "sub" }, "Automações"),
+    h("p", { class: "hint" }, "Itens aceitam um efeito de Amplificação/Redução/dados e um de bônus fixos."),
+    effectsEditor(it.effects, "item"));
+}
+
+// ======================================================================
+// EDITOR DE AUTOMAÇÕES (só as que o app já tem)
+// ======================================================================
+const KIND_NAMES = { amp: "Amplificação de dano", red: "Redução de dano", dice: "Dobrar / dividir dados", bonus: "Bônus fixos" };
+function newEffect(kind) {
+  if (kind === "bonus") return { kind, ac: 0, save: 0, attack: 0, dc: 0, speed: 0, speedMult: "", initiative: "", initiativeNum: 0, crit: 0,
+    melee: "", meleeNum: 0, ranged: "", rangedNum: 0, all: "", allNum: 0, typeDmgType: "", typeDmg: "", typeDmgNum: 0,
+    attrs: { STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 }, highest: 0, condition: "", activatable: false, species: "" };
+  return { kind, points: kind === "dice" ? 0 : 1, mult: 2, types: [], range: "", condition: "", special: "", moves: "", contains: "", activatable: false, label: "" };
+}
+function effectsEditor(list, owner) {
+  const box = h("div", { class: "stack" });
+  const kinds = owner === "move" ? ["amp", "red", "dice"] : ["amp", "red", "dice", "bonus"];
+  const draw = () => {
+    box.replaceChildren(...list.map((e, i) => effectCard(e, owner, () => { list.splice(i, 1); saveDraft(); draw(); })),
+      h("div", { class: "checks" }, kinds.map(k => h("button", { class: "btn small", onclick: () => {
+        if (owner === "item") {
+          const hasAmp = list.some(x => x.kind !== "bonus"), hasBonus = list.some(x => x.kind === "bonus");
+          if (k !== "bonus" && hasAmp) { toast("Itens têm só um efeito de dano"); return; }
+          if (k === "bonus" && hasBonus) { toast("Itens têm só um bloco de bônus"); return; }
+        }
+        list.push(newEffect(k)); saveDraft(); draw();
+      } }, "+ " + KIND_NAMES[k]))));
+  };
+  draw();
+  return box;
+}
+const autoGrid = (...kids) => h("div", { style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 12px" }, ...kids);
+function typeChecks(arr) {
+  const box = h("div", { class: "checks" });
+  for (const [en, pt] of TYPES) {
+    const cb = h("input", { type: "checkbox", checked: arr.includes(en) });
+    cb.addEventListener("change", () => { if (cb.checked) arr.push(en); else arr.splice(arr.indexOf(en), 1); saveDraft(); });
+    box.append(h("label", { class: "check" }, cb, pt));
+  }
+  return box;
+}
+function effectCard(e, owner, onRemove) {
+  const card = h("fieldset", { class: "group" }, h("legend", {}, KIND_NAMES[e.kind]), h("div", { class: "hdr" }, h("button", { class: "btn small danger", onclick: onRemove }, "Remover")));
+  if (e.kind === "bonus") { card.append(bonusFields(e, owner)); return card; }
+  const g = autoGrid();
+  if (e.kind === "dice") g.append(field("Dados", e, "mult", { number: true, options: [[2, "Dobra os dados (×2)"], [0.5, "Corta os dados pela metade"]] }));
+  else g.append(field("Pontos", e, "points", { number: true, options: [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4].map(v => [v, String(v).replace(".", ",") + (v === 0.5 ? " (½ proficiência)" : v === 1 ? " (rola 2x, maior)" : v === 2 ? " (+1 dado a cada 2)" : "")]) }));
+  g.append(field("Alcance do Move", e, "range", { options: [["", "Qualquer"], ["melee", "Corpo a corpo"], ["ranged", "À distância"]] }),
+    field("Condição", e, "condition", { options: CONDITIONS }),
+    field("Tipo de Move", e, "special", { options: SPECIALS }),
+    field("Moves específicos", e, "moves", { placeholder: "Ex: Flamethrower, Ember" }),
+    field("Nome do Move contém", e, "contains", { placeholder: "Ex: Pulse, Aura" }),
+    field("Texto curto (aparece no app)", e, "label", { placeholder: "Ex: Chama Viva (Fogo)" }));
+  card.append(h("p", { class: "hint", style: "margin:0 0 4px" }, "Só vale para Moves destes tipos (nenhum marcado = todos):"), typeChecks(e.types), h("div", { style: "height:10px" }), g);
+  if (owner !== "move") {
+    const act = h("input", { type: "checkbox", checked: e.activatable }); act.addEventListener("change", () => { e.activatable = act.checked; saveDraft(); });
+    card.append(h("label", { class: "check", style: "margin-top:10px" }, act, "Precisa do botão ATIVAR (condição que o app não sabe: clima, aliado, alvo...)"));
+  }
+  return card;
+}
+function amountField(label, e, key) {
+  const numKey = key + "Num";
+  const sel = h("select", { "aria-label": label }, AMOUNT_OPTS.map(([v, t]) => h("option", { value: v, selected: e[key] === v }, t)));
+  const num = h("input", { type: "number", value: e[numKey], "aria-label": label + " (número)", hidden: e[key] !== "num" });
+  sel.addEventListener("change", () => { e[key] = sel.value; num.hidden = sel.value !== "num"; saveDraft(); });
+  num.addEventListener("input", () => { e[numKey] = Number(num.value) || 0; saveDraft(); });
+  return h("div", { style: "display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted);min-width:0" }, label, sel, num);
+}
+function bonusFields(e, owner) {
+  const out = h("div", { class: "stack" }, autoGrid(
+    field("CA", e, "ac", { number: true, min: -5, max: 5 }),
+    field("Testes de resistência", e, "save", { number: true, min: -5, max: 5 }),
+    field("Rolagem de ataque", e, "attack", { number: true, min: -5, max: 5 }),
+    field("CD dos Moves", e, "dc", { number: true, min: -5, max: 5 }),
+    field("Deslocamento (pés)", e, "speed", { number: true, min: -30, max: 30, step: "5" }),
+    field("Multiplicar deslocamento", e, "speedMult", { options: [["", "Não"], ["2", "×2"], ["0.5", "Pela metade"]] }),
+    amountField("Iniciativa", e, "initiative"),
+    field("Margem de Crítico", e, "crit", { number: true, min: 0, max: 6 }),
+    amountField("Dano corpo a corpo", e, "melee"),
+    amountField("Dano à distância", e, "ranged")));
+  if (owner === "item") {
+    out.append(autoGrid(
+      amountField("Dano de todos os Moves", e, "all"),
+      field("Dano extra só no tipo", e, "typeDmgType", { options: [["", "Nenhum"], ...TYPES] }),
+      amountField("Valor do dano extra do tipo", e, "typeDmg"),
+      field("Só funciona nas espécies", e, "species", { placeholder: "Ex: Brasamander (vazio = todas)" })));
+  } else {
+    out.append(h("div", { class: "cap" }, "Atributos"), autoGrid(
+      ATTRS.map(([en, pt]) => field(pt, e.attrs, en, { number: true, min: -10, max: 10 })),
+      field("+ no maior atributo", e, "highest", { number: true, min: 0, max: 4 }),
+      field("Condição", e, "condition", { options: CONDITIONS })));
+    const act = h("input", { type: "checkbox", checked: e.activatable }); act.addEventListener("change", () => { e.activatable = act.checked; saveDraft(); });
+    out.append(h("label", { class: "check" }, act, "Precisa do botão ATIVAR"));
+  }
+  return out;
+}
+
+// Efeito do editor -> formato que o app lê (fakemon/automations.lua)
+const splitList = s => String(s || "").split(",").map(x => x.trim()).filter(Boolean);
+function ampEntry(e, owner) {
+  const out = {};
+  if (e.kind === "dice") { out.points = 0; out.dice_multiplier = Number(e.mult) === 0.5 ? 0.5 : 2; }
+  else { out.points = Number(e.points) || 0; if (e.kind === "red") out.reduction = true; }
+  if (e.types.length) out.types = [...e.types];
+  if (e.range) out.range = e.range;
+  if (e.condition) out.condition = e.condition;
+  if (e.special) out[e.special] = true;
+  const mv = splitList(e.moves); if (mv.length) out.moves = mv;
+  const nc = splitList(e.contains); if (nc.length) out.name_contains = nc;
+  if (owner !== "move" && e.activatable) out.activatable = true;
+  if (e.label) out.label = e.label.slice(0, 60);
+  return out;
+}
+function amountValue(e, key) { if (!e[key]) return undefined; if (e[key] === "num") return Number(e[key + "Num"]) || undefined; return e[key]; }
+function bonusEntry(e, owner) {
+  const out = {};
+  const put = (k, v) => { if (v !== undefined && v !== 0 && v !== "" && v !== null && !Number.isNaN(v)) out[k] = v; };
+  put("ac_bonus", Number(e.ac)); put("save_bonus", Number(e.save)); put("attack_roll_bonus", Number(e.attack)); put("save_dc_bonus", Number(e.dc));
+  put("speed_bonus", Number(e.speed)); if (e.speedMult) out.speed_multiplier = Number(e.speedMult);
+  put("initiative", amountValue(e, "initiative")); put("crit_margin", Number(e.crit));
+  put("melee_damage_bonus", amountValue(e, "melee")); put("ranged_damage_bonus", amountValue(e, "ranged"));
+  if (owner === "item") {
+    put("all_damage_bonus", amountValue(e, "all"));
+    const td = amountValue(e, "typeDmg"); if (e.typeDmgType && td !== undefined) out.type_damage_bonus = { type: e.typeDmgType, amount: td };
+    const sp = splitList(e.species); if (sp.length) out.restricted_species = sp;
+  } else {
+    const attrs = {}; for (const [k] of ATTRS) if (Number(e.attrs[k])) attrs[k] = Number(e.attrs[k]);
+    if (Object.keys(attrs).length) out.attributes = attrs;
+    put("attr_highest", Number(e.highest)); if (e.condition) out.condition = e.condition; if (e.activatable) out.activatable = true;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// ======================================================================
+// PACOTE / EXPORTAR / IMPORTAR
+// ======================================================================
+function renderPack() {
+  const m = state.meta;
+  return h("section", { class: "pane" },
+    h("h2", {}, "Dados do pacote"), h("div", { style: "height:10px" }),
+    h("div", { class: "form" }, rows(
+      ["Nome do pacote", m, "name", { onchange: () => { clearTimeout(renderPack.t); renderPack.t = setTimeout(renderTabs, 300); } }],
+      ["Autor", m, "author"],
+      ["Versão", m, "version"])),
+    h("div", { class: "lb big", style: "margin-top:14px" }, h("div", { class: "lb-title" }, "Descrição"), control(m, "description", { textarea: true, aria: "Descrição do pacote" })),
+    h("hr", { class: "sep" }),
+    h("h2", {}, "Começar do zero"),
+    h("p", { class: "hint" }, "Apaga tudo o que está neste navegador (Fakemons, Moves, Habilidades e Itens)."),
+    h("div", { style: "margin-top:8px" }, h("button", { class: "btn danger", onclick: (ev) => {
+      const b = ev.currentTarget;
+      if (b.dataset.armed) { state = blankPack(); saveDraft(); tab = "pokemon"; render(); toast("Tudo apagado"); return; }
+      b.dataset.armed = "1"; b.textContent = "Clique de novo para confirmar"; setTimeout(() => { if (b.isConnected) { b.textContent = "Apagar tudo"; delete b.dataset.armed; } }, 3000);
+    } }, "Apagar tudo")));
+}
+
+function slug(s) { return String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "") || "fakemon"; }
+
+function validate() {
+  const msgs = [];
+  const m = state.meta;
+  if (!m.name.trim()) msgs.push(["bad", "Dê um nome ao pacote (aba Pacote)."]);
+  if (!state.pokemon.length && !state.moves.length && !state.abilities.length && !state.items.length) msgs.push(["bad", "O pacote está vazio."]);
+  const names = new Set(), idx = new Set();
+  const knownAbilities = new Set(abilitySource().all), knownMoves = new Set(moveSource().all);
+  for (const p of state.pokemon) {
+    const n = p.name.trim() || "(sem nome)";
+    if (!p.name.trim()) msgs.push(["bad", "Tem um Fakemon sem nome."]);
+    if (names.has(p.name)) msgs.push(["bad", `Dois Fakemons com o nome ${n}.`]); names.add(p.name);
+    if (idx.has(Number(p.index))) msgs.push(["bad", `${n}: número ${p.index} repetido.`]); idx.add(Number(p.index));
+    if (Number(p.index) <= LISTS.max_index) msgs.push(["bad", `${n}: o número precisa ser maior que ${LISTS.max_index} (os do app).`]);
+    if (!p.types.length) msgs.push(["bad", `${n}: escolha pelo menos um tipo.`]);
+    if (!p.abilities.length) msgs.push(["bad", `${n}: escolha pelo menos uma habilidade.`]);
+    for (const a of [...p.abilities, p.hidden].filter(Boolean)) if (!knownAbilities.has(a)) msgs.push(["warn", `${n}: a habilidade "${a}" não existe no app nem no pacote.`]);
+    const allMoves = [...p.startMoves, ...p.eggMoves, ...p.levelMoves.flatMap(r => r.moves)];
+    for (const mv of allMoves) if (!knownMoves.has(mv)) msgs.push(["warn", `${n}: o Move "${mv}" não existe no app nem no pacote.`]);
+    for (const tm of p.tmMoves) if (!(tm in TM_BY_NAME)) msgs.push(["warn", `${n}: "${tm}" não é TM no app (vai ser ignorado).`]);
+    if (!p.sprite) msgs.push(["warn", `${n}: sem retrato (o app mostra uma Pokébola).`]);
+    else if (!p.icon || p.iconAuto) msgs.push(["warn", `${n}: sem ícone; vai ser feito do retrato.`]);
+  }
+  for (const mv of state.moves) if (!mv.name.trim()) msgs.push(["bad", "Tem um Move sem nome."]);
+  for (const a of state.abilities) if (!a.name.trim()) msgs.push(["bad", "Tem uma Habilidade sem nome."]);
+  for (const it of state.items) if (!it.name.trim()) msgs.push(["bad", "Tem um Item sem nome."]);
+  return msgs;
+}
+
+function buildData() {
+  const sizeText = p => `${p.size} (${String(Number(p.height || 0).toFixed(1)).replace(".", ",")} m)`;
+  const data = { "pokemon.json": {}, "moves.json": {}, "abilities.json": {}, "items.json": {}, "evolve.json": {}, "gender.json": {}, "pokedex_extra.json": {}, "automations.json": { abilities: {}, items: {}, moves: {} } };
+  const images = {};
+  for (const p of state.pokemon) {
+    const lvl = {};
+    for (const r of p.levelMoves) { if (!r.moves.length) continue; const k = String(Math.max(1, Math.min(20, r.level))); lvl[k] = [...(lvl[k] || []), ...r.moves]; }
+    const out = { index: Number(p.index), Type: [...p.types], size: sizeText(p), AC: Number(p.ac), HP: Number(p.hp), "Hit Dice": Number(p.hitDice),
+      SR: Number(p.sr), "MIN LVL FD": Number(p.minLevel), attributes: { ...p.attrs }, Abilities: [...p.abilities], Skill: [...p.skills],
+      Moves: { "Starting Moves": [...p.startMoves], Level: lvl, TM: p.tmMoves.filter(t => t in TM_BY_NAME).map(t => TM_BY_NAME[t]).sort((a, b) => a - b), egg: [...p.eggMoves] } };
+    if (p.hidden) out["Hidden Ability"] = p.hidden;
+    if (p.wsp) out.WSp = Number(p.wsp); if (p.ssp) out.Ssp = Number(p.ssp); if (p.fsp) out.Fsp = Number(p.fsp);
+    if (p.csp) out["Climbing Speed"] = Number(p.csp); if (p.bsp) out["Burrowing Speed"] = Number(p.bsp);
+    const senses = SENSES.filter(([en]) => Number(p.senses[en])).map(([en]) => `${en} ${Number(p.senses[en])}ft`);
+    if (senses.length) out.Senses = senses;
+    if (p.evolveTo) out.Evolve = p.evolveTo;
+    const base = slug(p.name);
+    if (p.sprite) { out.sprite = base + "_sprite.png"; images[out.sprite] = p.sprite; }
+    if (p.icon) { out.icon = base + "_icon.png"; images[out.icon] = p.icon; }
+    data["pokemon.json"][p.name] = out;
+    const ev = { current_stage: Number(p.stage) || 1, total_stages: Number(p.stages) || 1 };
+    if (p.evolveTo) Object.assign(ev, { into: [p.evolveTo], level: Number(p.evolveLevel) || 1, points: Number(p.evolvePoints) || 0 });
+    data["evolve.json"][p.name] = ev;
+    if (p.gender !== "3") data["gender.json"][p.name] = Number(p.gender);
+    data["pokedex_extra.json"][String(p.index)] = { flavor: p.flavor, genus: p.genus, height: Math.round(Number(p.height) * 10), weight: Math.round(Number(p.weight) * 10) };
+  }
+  for (const m of state.moves) {
+    const out = { Name: m.name, Type: m.type, PP: Number(m.pp), "Move Time": m.time, Duration: m.duration, Range: m.range, Description: m.description };
+    if (m.scaling) out.Scaling = m.scaling;
+    if (m.power.length) out["Move Power"] = Object.fromEntries(m.power.map(a => [a, 0]));
+    if (m.roll === "atk") out.atk = true; else if (m.roll === "save") out.Save = m.save;
+    if (m.damage.on) {
+      out.Damage = {};
+      for (const [lvl, key] of [["1", "d1"], ["5", "d5"], ["10", "d10"], ["17", "d17"]]) {
+        out.Damage[lvl] = { amount: Number(m.damage[key][0]), dice_max: Number(m.damage[key][1]) };
+        if (m.damage.move) out.Damage[lvl].move = true;
+      }
+    }
+    data["moves.json"][m.name] = out;
+    const entries = m.effects.filter(e => e.kind !== "bonus").map(e => ampEntry(e, "move"));
+    if (entries.length) data["automations.json"].moves[m.name] = entries;
+  }
+  for (const a of state.abilities) {
+    data["abilities.json"][a.name] = { Description: a.description };
+    const amp = a.effects.filter(e => e.kind !== "bonus").map(e => ampEntry(e, "ability"));
+    const bonusE = a.effects.find(e => e.kind === "bonus"); const bonus = bonusE ? bonusEntry(bonusE, "ability") : null;
+    if (amp.length || bonus) data["automations.json"].abilities[a.name] = Object.assign({}, amp.length ? { amplification: amp } : {}, bonus ? { bonuses: bonus } : {});
+  }
+  for (const it of state.items) {
+    data["items.json"][it.name] = { Effect: it.effect };
+    const ampE = it.effects.find(e => e.kind !== "bonus"); const bonusE = it.effects.find(e => e.kind === "bonus");
+    const bonus = bonusE ? bonusEntry(bonusE, "item") : null;
+    if (ampE || bonus) data["automations.json"].items[it.name] = Object.assign({}, ampE ? { amplification: ampEntry(ampE, "item") } : {}, bonus ? { bonuses: bonus } : {});
+  }
+  return { data, images };
+}
+
+// Ícone 40x30 feito do retrato: corta a parte transparente em volta e encaixa
+function iconFromSprite(dataUrl) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+      const ctx = c.getContext("2d"); ctx.drawImage(img, 0, 0);
+      const px = ctx.getImageData(0, 0, c.width, c.height).data;
+      let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+      for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+        if (px[(y * c.width + x) * 4 + 3] > 10) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      }
+      if (x1 < 0) { x0 = 0; y0 = 0; x1 = c.width - 1; y1 = c.height - 1; }
+      const w = x1 - x0 + 1, hh = y1 - y0 + 1;
+      const out = document.createElement("canvas"); out.width = 40; out.height = 30;
+      const o = out.getContext("2d");
+      const s = Math.min(40 / w, 30 / hh);
+      const dw = Math.max(1, Math.round(w * s)), dh = Math.max(1, Math.round(hh * s));
+      o.drawImage(c, x0, y0, w, hh, Math.floor((40 - dw) / 2), Math.floor((30 - dh) / 2), dw, dh);
+      resolve(out.toDataURL("image/png"));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+// ======================================================================
+// CONTA (login com Discord pelo servidor do PMP)
+// ======================================================================
+const SESSION_KEY = "pmp-fakemon-session";
+let session = null, me = null;
+try { session = localStorage.getItem(SESSION_KEY); } catch (e) {}
+(function readLoginReturn() {
+  const hp = new URLSearchParams(location.hash.slice(1));
+  const err = hp.get("pmp_error");
+  if (hp.get("pmp_session")) { session = hp.get("pmp_session"); try { localStorage.setItem(SESSION_KEY, session); } catch (e) {} }
+  if (hp.has("pmp_session") || err) history.replaceState(null, "", location.pathname + location.search);
+  if (err) setTimeout(() => toast(err === "fora_do_server" ? "Você precisa estar no server do PMP no Discord." : err === "cancelado" ? "Login cancelado." : "Não deu pra entrar com o Discord."), 300);
+})();
+async function api(path, opts = {}) {
+  let res;
+  try {
+    res = await fetch(SERVER_URL + path, {
+      method: opts.method || "GET",
+      headers: { ...(session ? { Authorization: "Bearer " + session } : {}), ...(opts.body ? { "Content-Type": "application/json" } : {}) },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+  } catch (e) { throw new Error("Sem conexão com o servidor do PMP."); }
+  let data = {};
+  try { data = await res.json(); } catch (e) {}
+  if (res.status === 401) { logout(true); throw new Error("Entre com o Discord de novo."); }
+  if (!res.ok) throw new Error(data.error || "Erro do servidor (" + res.status + ").");
+  return data;
+}
+function login() {
+  if (location.protocol === "file:") { toast("Abra o Criador pelo site (não pelo arquivo) para entrar."); return; }
+  location.href = SERVER_URL + "/auth/login?ret=" + encodeURIComponent(location.href.split("#")[0]);
+}
+function logout(silent) {
+  session = null; me = null;
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+  updateLogin();
+  if (!silent) toast("Você saiu da conta");
+  if (tab === "admin") tab = "pokemon";
+  render();
+}
+async function loadMe() {
+  if (!session) { me = null; updateLogin(); return; }
+  try { me = await api("/api/me"); } catch (e) { me = null; }
+  updateLogin(); render();
+}
+function updateLogin() { $("#btn-login").textContent = me ? "Sair (" + me.name + ")" : "Entrar com Discord"; }
+
+// ======================================================================
+// ARQUIVO DE PROJETO (criptografado: só a conta do criador abre)
+// ======================================================================
+const PROJECT_FORMAT = "pmp-fakemon-project";
+function bytesToB64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function b64ToBytes(s) { const bin = atob(s); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
+function b64urlToBytes(s) { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return b64ToBytes(s); }
+async function projectKey() {
+  const { key } = await api("/api/project-key");
+  return crypto.subtle.importKey("raw", b64urlToBytes(key), "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+function saveBlob(blob, name) {
+  const a = h("a", { href: URL.createObjectURL(blob), download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+async function saveProject() {
+  if (!me) { toast("Entre com o Discord para salvar o projeto"); return; }
+  try {
+    const key = await projectKey();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(state))));
+    const file = { format: PROJECT_FORMAT, v: 1, owner: me.id, ownerName: me.name, name: state.meta.name, iv: bytesToB64(iv), data: bytesToB64(ct) };
+    saveBlob(new Blob([JSON.stringify(file)], { type: "application/octet-stream" }), slug(state.meta.name) + ".pmpfkmn");
+    toast("Projeto salvo. Só a sua conta do Discord abre ele.");
+  } catch (e) { toast(e.message); }
+}
+async function openProject(file) {
+  try {
+    let f;
+    try { f = JSON.parse(await file.text()); } catch (e) { f = null; }
+    if (!f || f.format !== PROJECT_FORMAT) throw new Error("Esse arquivo não é um projeto do Criador.");
+    if (!me) throw new Error("Entre com o Discord para abrir o projeto.");
+    if (f.owner !== me.id) throw new Error("Esse projeto é de outra conta do Discord (" + (f.ownerName || "outro criador") + ").");
+    const key = await projectKey();
+    let plain;
+    try { plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64ToBytes(f.iv) }, key, b64ToBytes(f.data)); }
+    catch (e) { throw new Error("Projeto corrompido ou alterado."); }
+    const loaded = JSON.parse(new TextDecoder().decode(plain));
+    if (!loaded || !Array.isArray(loaded.pokemon)) throw new Error("Projeto inválido.");
+    state = Object.assign(blankPack(), loaded); sel = { pokemon: 0, moves: 0, abilities: 0, items: 0 };
+    saveDraft(); tab = "pokemon"; render(); toast("Projeto aberto: " + (state.meta.name || file.name));
+  } catch (e) { toast(e.message); }
+}
+
+// ======================================================================
+// PUBLICAR
+// ======================================================================
+const STATUS_PT = { private: "Privado", pending: "Aguardando aprovação", public: "Público", rejected: "Recusado" };
+function fmtDate(t) { try { return new Date(t).toLocaleDateString("pt-BR"); } catch (e) { return ""; } }
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); toast("Link copiado"); }
+  catch (e) { toast("Selecione o link e copie (Ctrl+C)"); }
+}
+function linkBox(link, note) {
+  const input = h("input", { value: link, readonly: true, "aria-label": "Link do pacote", onfocus: e => e.target.select() });
+  return h("div", { class: "linkbox" }, h("div", { class: "lb-add" }, input, h("button", { class: "btn primary", onclick: () => copyText(link) }, "Copiar")),
+    note ? h("p", { class: "hint" }, note) : null);
+}
+async function buildUpload(visibility) {
+  for (const p of state.pokemon) if (p.sprite && (!p.icon || p.iconAuto)) { p.icon = await iconFromSprite(p.sprite); p.iconAuto = true; }
+  saveDraft();
+  const { data, images } = buildData();
+  const imgs = {};
+  for (const [k, url] of Object.entries(images)) imgs[k] = url.split(",")[1];
+  const m = state.meta;
+  return { visibility, index: { name: m.name, author: m.author, version: m.version, description: m.description }, data, images: imgs };
+}
+
+function renderExport() {
+  const msgs = validate();
+  const bad = msgs.filter(m => m[0] === "bad").length;
+  const { data } = buildData();
+  const auto = data["automations.json"];
+  const autoCount = Object.keys(auto.abilities).length + Object.keys(auto.items).length + Object.keys(auto.moves).length;
+  const pane = h("section", { class: "pane" },
+    h("h2", {}, "Publicar pacote"),
+    h("p", {}, `${state.pokemon.length} Fakemons · ${state.moves.length} Moves · ${state.abilities.length} Habilidades · ${state.items.length} Itens · ${autoCount} com automação`),
+    h("div", { class: "msgs" }, msgs.length ? msgs.map(([k, t]) => h("div", { class: "msg " + k }, t)) : h("div", { class: "msg ok" }, "Tudo certo para publicar.")));
+  if (!me) {
+    pane.append(h("p", {}, "Para publicar, entre com o Discord. Precisa estar no server do PMP."),
+      h("button", { class: "btn primary", onclick: login }, "Entrar com Discord"));
+  } else {
+    let visibility = "private";
+    const opt = (v, title, desc) => {
+      const r = h("input", { type: "radio", name: "vis", value: v, checked: v === visibility });
+      r.addEventListener("change", () => { visibility = v; });
+      return h("label", { class: "visopt" }, r, h("span", {}, h("b", {}, title), h("br"), h("span", { class: "hint" }, desc)));
+    };
+    const result = h("div", {});
+    const btn = h("button", { class: "btn primary", disabled: bad > 0 }, bad ? `Corrija ${bad} erro(s)` : "Publicar no servidor do PMP");
+    btn.addEventListener("click", async () => {
+      btn.disabled = true; btn.textContent = "Enviando…";
+      try {
+        const r = await api("/api/publish", { method: "POST", body: await buildUpload(visibility) });
+        result.replaceChildren(r.link
+          ? linkBox(r.link, "Link privado: vale para 10 instalações (e até 30 dias). Gere outro em Meus pacotes quando acabar.")
+          : h("div", { class: "msg ok" }, "Enviado! O pacote está aguardando aprovação. Quando for aprovado, o link eterno aparece em Meus pacotes."));
+        loadMine(mineBox);
+      } catch (e) { result.replaceChildren(h("div", { class: "msg bad" }, e.message)); }
+      btn.disabled = false; btn.textContent = "Publicar no servidor do PMP";
+    });
+    const mineBox = h("div", { class: "pkglist" }, h("p", { class: "hint" }, "Carregando…"));
+    pane.append(
+      h("div", { class: "vis" },
+        opt("private", "Privado", "Você recebe um link para até 10 instalações. Precisa gerar outro depois."),
+        opt("public", "Público", "Vai para aprovação dos admins do PMP. Aprovado, ganha link eterno.")),
+      btn, result,
+      h("hr", { class: "sep" }), h("h2", {}, "Meus pacotes"), h("div", { style: "height:8px" }), mineBox);
+    loadMine(mineBox);
+  }
+  pane.append(h("hr", { class: "sep" }),
+    h("h2", {}, "Como colocar no app"), h("div", { style: "height:8px" }),
+    h("ol", { class: "steps" },
+      h("li", {}, "Publique aqui e copie o link."),
+      h("li", {}, "Mande o link pra quem vai usar (no Discord do PMP, por exemplo)."),
+      h("li", {}, "No app: copie o link e vá em Configurações → COLAR LINK. O app baixa, instala e reinicia."),
+      h("li", {}, "O link só funciona dentro do app: no navegador ele não baixa nada.")),
+    h("p", { class: "hint" }, "Para editar depois, use \"Salvar projeto\": o arquivo .pmpfkmn só abre com a sua conta do Discord."));
+  return pane;
+}
+
+async function loadMine(box) {
+  try {
+    const { packages } = await api("/api/mine");
+    if (!packages.length) { box.replaceChildren(h("p", { class: "hint" }, "Você ainda não publicou nada.")); return; }
+    box.replaceChildren(...packages.map(p => {
+      const out = h("div", {});
+      const actions = h("div", { class: "checks" });
+      if (p.status === "public") actions.append(h("button", { class: "btn small primary", onclick: async () => { try { const r = await api("/api/link", { method: "POST", body: { id: p.id } }); out.replaceChildren(linkBox(r.link, "Link eterno.")); } catch (e) { toast(e.message); } } }, "Mostrar link eterno"));
+      else actions.append(h("button", { class: "btn small", onclick: async () => { try { const r = await api("/api/link", { method: "POST", body: { id: p.id } }); out.replaceChildren(linkBox(r.link, "Novo link: 10 instalações.")); } catch (e) { toast(e.message); } } }, "Gerar link (10 usos)"));
+      actions.append(armedButton("Apagar", async () => { try { await api("/api/pkg/" + p.id, { method: "DELETE" }); loadMine(box); toast("Pacote apagado"); } catch (e) { toast(e.message); } }));
+      return h("div", { class: "pkg" },
+        h("div", { class: "pkg-head" }, h("b", {}, p.name || "(sem nome)"), h("span", { class: "badge " + p.status }, STATUS_PT[p.status] || p.status)),
+        h("div", { class: "hint" }, `v${p.version || "?"} · ${fmtDate(p.created)} · ${pkgCounts(p.counts)}`), actions, out);
+    }));
+  } catch (e) { box.replaceChildren(h("div", { class: "msg bad" }, e.message)); }
+}
+function pkgCounts(c) { c = c || {}; return `${c.p || 0} Fakemons, ${c.m || 0} Moves, ${c.a || 0} Habilidades, ${c.i || 0} Itens`; }
+function armedButton(label, action) {
+  const b = h("button", { class: "btn small danger" }, label);
+  b.addEventListener("click", () => {
+    if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Confirmar?"; setTimeout(() => { if (b.isConnected) { b.textContent = label; delete b.dataset.armed; } }, 3000); return; }
+    action();
+  });
+  return b;
+}
+
+// ======================================================================
+// ADMIN: todos os pacotes publicados, aprovação dos públicos
+// ======================================================================
+let adminFilter = "pending";
+function renderAdmin() {
+  const pane = h("section", { class: "pane" }, h("h2", {}, "Painel de admin"));
+  if (!me || !me.admin) { pane.append(h("p", {}, "Só para admins do PMP.")); return pane; }
+  const list = h("div", { class: "pkglist" }, h("p", { class: "hint" }, "Carregando…"));
+  const filter = h("select", { "aria-label": "Filtro" }, [["pending", "Aguardando aprovação"], ["public", "Públicos"], ["private", "Privados"], ["rejected", "Recusados"], ["all", "Todos"]].map(([v, t]) => h("option", { value: v, selected: v === adminFilter }, t)));
+  filter.addEventListener("change", () => { adminFilter = filter.value; loadAdmin(list); });
+  pane.append(h("div", { class: "inline", style: "margin:10px 0" }, h("label", {}, "Mostrar", filter), h("button", { class: "btn small", onclick: () => loadAdmin(list) }, "Atualizar")), list);
+  loadAdmin(list);
+  return pane;
+}
+async function loadAdmin(box) {
+  try {
+    const { packages } = await api("/api/admin/list");
+    const shown = packages.filter(p => adminFilter === "all" || p.status === adminFilter);
+    if (!shown.length) { box.replaceChildren(h("p", { class: "hint" }, "Nenhum pacote aqui.")); return; }
+    box.replaceChildren(...shown.map(p => {
+      const out = h("div", {});
+      const review = async approve => {
+        try { const r = await api("/api/admin/review", { method: "POST", body: { id: p.id, approve } }); toast(approve ? "Aprovado" : "Recusado"); if (r.link) out.replaceChildren(linkBox(r.link, "Link eterno do pacote.")); setTimeout(() => loadAdmin(box), approve ? 1500 : 0); }
+        catch (e) { toast(e.message); }
+      };
+      const actions = h("div", { class: "checks" },
+        h("button", { class: "btn small", onclick: () => previewPackage(p.id, out) }, "Ver conteúdo"),
+        p.status !== "public" ? h("button", { class: "btn small primary", onclick: () => review(true) }, "Aprovar (público)") : null,
+        p.status !== "rejected" ? h("button", { class: "btn small", onclick: () => review(false) }, p.status === "public" ? "Tirar do público" : "Recusar") : null,
+        armedButton("Apagar", async () => { try { await api("/api/pkg/" + p.id, { method: "DELETE" }); loadAdmin(box); toast("Pacote apagado"); } catch (e) { toast(e.message); } }));
+      return h("div", { class: "pkg" },
+        h("div", { class: "pkg-head" }, h("b", {}, p.name || "(sem nome)"), h("span", { class: "badge " + p.status }, STATUS_PT[p.status] || p.status)),
+        h("div", { class: "hint" }, `Autor: ${p.author || "?"} · Discord: ${p.ownerName || "?"} (${p.owner || "?"}) · v${p.version || "?"} · ${fmtDate(p.created)}`),
+        h("div", { class: "hint" }, pkgCounts(p.counts)), actions, out);
+    }));
+  } catch (e) { box.replaceChildren(h("div", { class: "msg bad" }, e.message)); }
+}
+async function previewPackage(id, box) {
+  box.replaceChildren(h("p", { class: "hint" }, "Carregando…"));
+  try {
+    const p = await api("/api/admin/pkg/" + id);
+    const d = p.data || {};
+    const section = (title, obj, line) => {
+      const entries = Object.entries(obj || {});
+      if (!entries.length) return null;
+      return h("div", {}, h("div", { class: "sub", style: "font-size:16px;margin:12px 0 4px" }, `${title} (${entries.length})`),
+        h("div", { class: "preview" }, entries.map(([name, v]) => line(name, v || {}))));
+    };
+    const pk = section("Fakemons", d["pokemon.json"], (name, v) => h("div", { class: "pv-row" },
+      v.sprite && p.images[v.sprite] ? h("img", { src: "data:image/png;base64," + p.images[v.sprite], alt: "", width: 63, height: 63 }) : h("span", { class: "pv-noimg" }),
+      h("div", {}, h("b", {}, name), " #" + v.index + " · " + (v.Type || []).map(t => TYPE_PT[t] || t).join("/"),
+        h("div", { class: "hint" }, "Habilidades: " + [...(v.Abilities || []), v["Hidden Ability"]].filter(Boolean).join(", ")))));
+    const txt = (key) => (name, v) => h("div", { class: "pv-row" }, h("div", {}, h("b", {}, name), h("div", { class: "hint" }, String(v[key] || "").slice(0, 300))));
+    const auto = d["automations.json"] || {};
+    const autoN = ["abilities", "items", "moves"].reduce((n, k) => n + Object.keys(auto[k] || {}).length, 0);
+    box.replaceChildren(h("div", { class: "previewbox" },
+      h("div", { class: "hint" }, (p.index.description || "Sem descrição.") + (autoN ? ` · ${autoN} com automação` : "")),
+      pk, section("Moves", d["moves.json"], txt("Description")), section("Habilidades", d["abilities.json"], txt("Description")), section("Itens", d["items.json"], txt("Effect"))));
+  } catch (e) { box.replaceChildren(h("div", { class: "msg bad" }, e.message)); }
+}
+
+// ======================================================================
+// INÍCIO
+// ======================================================================
+$("#btn-save").addEventListener("click", saveProject);
+$("#btn-publish").addEventListener("click", () => { tab = "export"; render(); });
+$("#btn-login").addEventListener("click", () => (me ? logout() : login()));
+$("#import-file").addEventListener("change", e => { const f = e.target.files[0]; if (f) openProject(f); e.target.value = ""; });
+$("#btn-theme").addEventListener("click", () => {
+  const next = isDark() ? "light" : "dark";
+  applyTheme(next); try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+  themeLabel();
+});
+themeLabel();
+updateLogin();
+render();
+loadMe();
+</script>
+</body>
+</html>
