@@ -1044,6 +1044,7 @@ async function loadMine(box) {
       const out = h("div", {});
       const actions = h("div", { class: "checks" });
       if (p.status === "public") actions.append(h("button", { class: "btn small primary", onclick: async () => { try { const r = await api("/api/link", { method: "POST", body: { id: p.id } }); out.replaceChildren(linkBox(r.link, "Link eterno.")); } catch (e) { toast(e.message); } } }, "Mostrar link eterno"));
+      if (p.thread) actions.append(h("a", { class: "btn small", href: `https://discord.com/channels/1262406231033647124/${p.thread}`, target: "_blank", rel: "noopener" }, "Meu post no Discord"));
       else actions.append(h("button", { class: "btn small", onclick: async () => { try { const r = await api("/api/link", { method: "POST", body: { id: p.id } }); out.replaceChildren(linkBox(r.link, "Novo link: 10 instalações.")); } catch (e) { toast(e.message); } } }, "Gerar link (10 usos)"));
       actions.append(armedButton("Apagar", async () => { try { await api("/api/pkg/" + p.id, { method: "DELETE" }); loadMine(box); toast("Pacote apagado"); } catch (e) { toast(e.message); } }));
       return h("div", { class: "pkg" },
@@ -1084,11 +1085,17 @@ async function loadAdmin(box) {
     box.replaceChildren(...shown.map(p => {
       const out = h("div", {});
       const review = async approve => {
-        try { const r = await api("/api/admin/review", { method: "POST", body: { id: p.id, approve } }); toast(approve ? "Aprovado" : "Recusado"); if (r.link) out.replaceChildren(linkBox(r.link, "Link eterno do pacote.")); setTimeout(() => loadAdmin(box), approve ? 1500 : 0); }
-        catch (e) { toast(e.message); }
+        try {
+          const r = await api("/api/admin/review", { method: "POST", body: { id: p.id, approve } });
+          const forumMsg = !r.forum ? "" : r.forum === "ok" ? " · post no Discord atualizado" : " · falhou no Discord (" + r.forum + ")";
+          toast((approve ? "Aprovado" : "Recusado") + forumMsg);
+          if (r.link) out.replaceChildren(linkBox(r.link, "Link eterno do pacote." + forumMsg));
+          setTimeout(() => loadAdmin(box), approve ? 2500 : 0);
+        } catch (e) { toast(e.message); }
       };
       const actions = h("div", { class: "checks" },
         h("button", { class: "btn small", onclick: () => previewPackage(p.id, out) }, "Ver conteúdo"),
+        p.thread ? h("a", { class: "btn small", href: `https://discord.com/channels/1262406231033647124/${p.thread}`, target: "_blank", rel: "noopener" }, "Post no Discord") : null,
         p.status !== "public" ? h("button", { class: "btn small primary", onclick: () => review(true) }, "Aprovar (público)") : null,
         p.status !== "rejected" ? h("button", { class: "btn small", onclick: () => review(false) }, p.status === "public" ? "Tirar do público" : "Recusar") : null,
         armedButton("Apagar", async () => { try { await api("/api/pkg/" + p.id, { method: "DELETE" }); loadAdmin(box); toast("Pacote apagado"); } catch (e) { toast(e.message); } }));
