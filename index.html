@@ -160,6 +160,8 @@ fieldset.group .hdr { display: flex; justify-content: flex-end; margin: -4px 0 6
 .badge.pending { border-color: var(--warn); color: var(--warn); }
 .badge.rejected { border-color: var(--bad); color: var(--bad); }
 .previewbox { border-top: 1px solid var(--line); padding-top: 8px; }
+.downloads { font-size: 13px; }
+.downloads b { font-size: 18px; color: var(--title); font-variant-numeric: tabular-nums; }
 .preview { display: flex; flex-direction: column; gap: 4px; }
 .pv-row { display: flex; gap: 10px; align-items: center; }
 .pv-row img { image-rendering: pixelated; flex: none; }
@@ -1038,9 +1040,10 @@ function renderExport() {
 
 async function loadMine(box) {
   try {
-    const { packages } = await api("/api/mine");
-    if (!packages.length) { box.replaceChildren(h("p", { class: "hint" }, "Você ainda não publicou nada.")); return; }
-    box.replaceChildren(...packages.map(p => {
+    const { packages, publicLimit, publicUsed } = await api("/api/mine");
+    const quota = h("p", { class: "hint" }, `Pacotes públicos (ou aguardando aprovação): ${publicUsed} de ${publicLimit}. Privados não entram nesse limite.`);
+    if (!packages.length) { box.replaceChildren(quota, h("p", { class: "hint" }, "Você ainda não publicou nada.")); return; }
+    box.replaceChildren(quota, ...packages.map(p => {
       const out = h("div", {});
       const actions = h("div", { class: "checks" });
       if (p.status === "public") actions.append(h("button", { class: "btn small primary", onclick: async () => { try { const r = await api("/api/link", { method: "POST", body: { id: p.id } }); out.replaceChildren(linkBox(r.link, "Link eterno.")); } catch (e) { toast(e.message); } } }, "Mostrar link eterno"));
@@ -1049,7 +1052,10 @@ async function loadMine(box) {
       actions.append(armedButton("Apagar", async () => { try { await api("/api/pkg/" + p.id, { method: "DELETE" }); loadMine(box); toast("Pacote apagado"); } catch (e) { toast(e.message); } }));
       return h("div", { class: "pkg" },
         h("div", { class: "pkg-head" }, h("b", {}, p.name || "(sem nome)"), h("span", { class: "badge " + p.status }, STATUS_PT[p.status] || p.status)),
-        h("div", { class: "hint" }, `v${p.version || "?"} · ${fmtDate(p.created)} · ${pkgCounts(p.counts)}`), actions, out);
+        h("div", { class: "hint" }, `v${p.version || "?"} · ${fmtDate(p.created)} · ${pkgCounts(p.counts)}`),
+        h("div", { class: "downloads" }, h("b", {}, String(p.downloads || 0)), p.downloads === 1 ? " download" : " downloads",
+          p.status === "public" ? h("span", { class: "hint" }, " (cada aparelho conta uma vez)") : null),
+        actions, out);
     }));
   } catch (e) { box.replaceChildren(h("div", { class: "msg bad" }, e.message)); }
 }
@@ -1079,8 +1085,19 @@ function renderAdmin() {
 }
 async function loadAdmin(box) {
   try {
-    const { packages } = await api("/api/admin/list");
+    const { packages, limits, defaultLimit } = await api("/api/admin/list");
     const shown = packages.filter(p => adminFilter === "all" || p.status === adminFilter);
+    const usedBy = {};
+    for (const p of packages) if (p.status === "public" || p.status === "pending") usedBy[p.owner] = (usedBy[p.owner] || 0) + 1;
+    const limitEditor = p => {
+      const cur = limits[p.owner] ?? defaultLimit;
+      const input = h("input", { type: "number", min: 0, max: 100, value: cur, style: "width:64px", "aria-label": "Limite de públicos de " + (p.ownerName || p.owner) });
+      const save = h("button", { class: "btn small", onclick: async () => {
+        try { const r = await api("/api/admin/limit", { method: "POST", body: { user: p.owner, limit: Number(input.value) } }); toast(`Limite de ${p.ownerName || p.owner}: ${r.limit}`); loadAdmin(box); }
+        catch (e) { toast(e.message); }
+      } }, "Salvar");
+      return h("div", { class: "inline", style: "margin:0" }, h("label", {}, `Públicos de ${p.ownerName || "?"}: ${usedBy[p.owner] || 0} de`, input), save);
+    };
     if (!shown.length) { box.replaceChildren(h("p", { class: "hint" }, "Nenhum pacote aqui.")); return; }
     box.replaceChildren(...shown.map(p => {
       const out = h("div", {});
@@ -1102,7 +1119,9 @@ async function loadAdmin(box) {
       return h("div", { class: "pkg" },
         h("div", { class: "pkg-head" }, h("b", {}, p.name || "(sem nome)"), h("span", { class: "badge " + p.status }, STATUS_PT[p.status] || p.status)),
         h("div", { class: "hint" }, `Autor: ${p.author || "?"} · Discord: ${p.ownerName || "?"} (${p.owner || "?"}) · v${p.version || "?"} · ${fmtDate(p.created)}`),
-        h("div", { class: "hint" }, pkgCounts(p.counts)), actions, out);
+        h("div", { class: "hint" }, pkgCounts(p.counts)),
+        h("div", { class: "downloads" }, h("b", {}, String(p.downloads || 0)), p.downloads === 1 ? " download" : " downloads"),
+        limitEditor(p), actions, out);
     }));
   } catch (e) { box.replaceChildren(h("div", { class: "msg bad" }, e.message)); }
 }
