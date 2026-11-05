@@ -191,6 +191,12 @@ fieldset.group .hdr { display: flex; justify-content: flex-end; margin: -4px 0 6
 // SERVIDOR DO PMP (fakemon-server/worker.js). Troque pelo endereço do Worker.
 // ======================================================================
 const SERVER_URL = "https://pmp-fakemon.pokemonmundoperfeito.workers.dev";
+// Automações (Amplificação, bônus, ATIVAR) ficam guardadas até o servidor
+// ligar o próximo update (variável PROXIMO_UPDATE = 1 no Worker)
+let automationsOn = false;
+fetch(SERVER_URL + "/flags").then(r => r.json()).then(f => {
+  if (f && f.proximo_update === true) { automationsOn = true; if (typeof render === "function" && document.readyState !== "loading") render(); }
+}).catch(() => {});
 // ======================================================================
 // DADOS FIXOS DO APP
 // ======================================================================
@@ -578,9 +584,9 @@ function editMove(m) {
     h("div", { class: "lb big" }, h("div", { class: "lb-title" }, "Níveis superiores"), control(m, "scaling", { textarea: true, aria: "Níveis superiores", placeholder: "Os dados de dano mudam para ..." })));
   return h("div", {}, nameHeader(m, "Move", "Nome do Move"),
     h("div", { class: "cols" }, left, right),
-    h("h3", { class: "sub" }, "Automação"),
+    automationsOn ? [h("h3", { class: "sub" }, "Automação"),
     h("p", { class: "hint" }, "Só se o Move funciona como clima, terreno ou Charge: ganha o botão ATIVAR no popup e muda o dano dos Moves até o fim da batalha."),
-    effectsEditor(m.effects, "move"));
+    effectsEditor(m.effects, "move")] : null);
 }
 
 // ======================================================================
@@ -589,16 +595,16 @@ function editMove(m) {
 function editAbility(a) {
   return h("div", {}, nameHeader(a, "Habilidade", "Nome da Habilidade"),
     h("div", { class: "lb big" }, h("div", { class: "lb-title" }, "Descrição"), control(a, "description", { textarea: true, aria: "Descrição" })),
-    h("h3", { class: "sub" }, "Automações"),
+    automationsOn ? [h("h3", { class: "sub" }, "Automações"),
     h("p", { class: "hint" }, "Se a habilidade funciona igual a alguma regra que o app já calcula, monte aqui. Se não encaixar, deixe só o texto."),
-    effectsEditor(a.effects, "ability"));
+    effectsEditor(a.effects, "ability")] : null);
 }
 function editItem(it) {
   return h("div", {}, nameHeader(it, "Item", "Nome do Item"),
     h("div", { class: "lb big" }, h("div", { class: "lb-title" }, "Efeito"), control(it, "effect", { textarea: true, aria: "Efeito" })),
-    h("h3", { class: "sub" }, "Automações"),
+    automationsOn ? [h("h3", { class: "sub" }, "Automações"),
     h("p", { class: "hint" }, "Itens aceitam um efeito de Amplificação/Redução/dados e um de bônus fixos."),
-    effectsEditor(it.effects, "item"));
+    effectsEditor(it.effects, "item")] : null);
 }
 
 // ======================================================================
@@ -836,6 +842,8 @@ function buildData() {
     const bonus = bonusE ? bonusEntry(bonusE, "item") : null;
     if (ampE || bonus) data["automations.json"].items[it.name] = Object.assign({}, ampE ? { amplification: ampEntry(ampE, "item") } : {}, bonus ? { bonuses: bonus } : {});
   }
+  // Automações guardadas pro próximo update: não vão no pacote ainda
+  if (!automationsOn) data["automations.json"] = { abilities: {}, items: {}, moves: {} };
   return { data, images };
 }
 
@@ -993,7 +1001,7 @@ function renderExport() {
   const autoCount = Object.keys(auto.abilities).length + Object.keys(auto.items).length + Object.keys(auto.moves).length;
   const pane = h("section", { class: "pane" },
     h("h2", {}, "Publicar pacote"),
-    h("p", {}, `${state.pokemon.length} Fakemons · ${state.moves.length} Moves · ${state.abilities.length} Habilidades · ${state.items.length} Itens · ${autoCount} com automação`),
+    h("p", {}, `${state.pokemon.length} Fakemons · ${state.moves.length} Moves · ${state.abilities.length} Habilidades · ${state.items.length} Itens` + (automationsOn ? ` · ${autoCount} com automação` : "")),
     h("div", { class: "msgs" }, msgs.length ? msgs.map(([k, t]) => h("div", { class: "msg " + k }, t)) : h("div", { class: "msg ok" }, "Tudo certo para publicar.")));
   if (!me) {
     pane.append(h("p", {}, "Para publicar, entre com o Discord. Precisa estar no server do PMP."),
