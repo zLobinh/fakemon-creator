@@ -196,12 +196,8 @@ dialog.rules li { margin-bottom: 6px; }
 // SERVIDOR DO PMP (fakemon-server/worker.js). Troque pelo endereço do Worker.
 // ======================================================================
 const SERVER_URL = "https://pmp-fakemon.pokemonmundoperfeito.workers.dev";
-// Automações (Amplificação, bônus, ATIVAR) ficam guardadas até o servidor
-// ligar o próximo update (variável PROXIMO_UPDATE = 1 no Worker)
-let automationsOn = false;
-fetch(SERVER_URL + "/flags").then(r => r.json()).then(f => {
-  if (f && f.proximo_update === true) { automationsOn = true; if (typeof render === "function" && document.readyState !== "loading") render(); }
-}).catch(() => {});
+// Automações (Amplificação, bônus, ATIVAR) liberadas junto com o livro novo
+const automationsOn = true;
 // ======================================================================
 // DADOS FIXOS DO APP
 // ======================================================================
@@ -262,7 +258,7 @@ function newPokemon(pack) {
     ac: 12, hp: 15, hitDice: 8, sr: 1, minLevel: 1, attrs: { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 },
     wsp: 30, ssp: 0, fsp: 0, csp: 0, bsp: 0, senses: {}, skills: [], abilities: [], hidden: "",
     startMoves: [], levelMoves: [], tmMoves: [], eggMoves: [], evolveTo: "", evolveLevel: 0, evolvePoints: 0,
-    stage: 1, stages: 1, gender: "3", sprite: null, icon: null };
+    stage: 1, stages: 1, gender: "3", sprite: null, icon: null, formName: "", variants: [] };
 }
 function newMove() {
   return { name: "", type: "Normal", power: ["STR"], time: "1 ação", pp: 10, duration: "Instantânea", range: "Corpo a corpo",
@@ -546,7 +542,69 @@ function editPokemon(p) {
   return h("div", {}, nameHeader(p, "Espécie", "Nome do Fakemon"), top,
     h("div", { class: "cols" }, left, right),
     h("h3", { class: "sub" }, "Evolução"), evo,
+    variantsEditor(p),
     h("p", { class: "hint" }, "Nomes em vermelho são Moves/Habilidades criados neste pacote."));
+}
+
+// ======================================================================
+// FORMAS / VARIANTES (formas regionais tipo Meowth de Alola, ou formas que
+// evoluem diferente tipo Lycanroc). Cada forma guarda só o que muda; o app
+// junta com a forma padrão (variant_data do pokemon.json).
+// ======================================================================
+function newVariant(p) {
+  return { name: "", types: [...p.types], abilities: [], hidden: "", ac: "",
+    attrs: { STR: "", DEX: "", CON: "", INT: "", WIS: "", CHA: "" },
+    startMoves: [], levelMoves: [], evolveTo: "", sprite: null, icon: null };
+}
+function variantsEditor(p) {
+  p.variants = p.variants || [];
+  const box = h("div", {});
+  const draw = () => {
+    const cards = p.variants.map((v, i) => {
+      const t1 = h("select", { "aria-label": "Tipo 1 da forma" }, TYPES.map(([en, pt]) => h("option", { value: en, selected: v.types[0] === en }, pt)));
+      const t2 = h("select", { "aria-label": "Tipo 2 da forma" }, h("option", { value: "" }, "Nenhum"), TYPES.map(([en, pt]) => h("option", { value: en, selected: v.types[1] === en }, pt)));
+      const syncTypes = () => { const a = [t1.value]; if (t2.value && t2.value !== t1.value) a.push(t2.value); v.types.splice(0, v.types.length, ...a); saveDraft(); };
+      t1.addEventListener("change", syncTypes); t2.addEventListener("change", syncTypes);
+
+      const levels = h("div", { class: "levels" });
+      const renderLevels = () => {
+        levels.replaceChildren(...v.levelMoves.map((row, j) => {
+          const lv = h("input", { type: "number", min: 1, max: 20, value: row.level, "aria-label": "Nível" });
+          lv.addEventListener("input", () => { row.level = Number(lv.value) || 1; saveDraft(); });
+          return listBox("Moves no nível", row.moves, { source: moveSource, titleNode: h("span", { class: "lv-head" }, "Moves no nível", lv),
+            extra: h("button", { class: "btn small danger", onclick: () => { v.levelMoves.splice(j, 1); saveDraft(); renderLevels(); } }, "Remover") });
+        }), h("button", { class: "addlevel", style: "min-height:60px", onclick: () => { v.levelMoves.push({ level: 2, moves: [] }); saveDraft(); renderLevels(); } }, "+ Nível desta forma"));
+      };
+      renderLevels();
+
+      const legend = h("legend", {}, v.name || "Nova forma");
+      return h("fieldset", { class: "group" }, legend,
+        h("div", { class: "hdr" }, h("button", { class: "btn small danger", onclick: () => { p.variants.splice(i, 1); saveDraft(); draw(); } }, "Remover forma")),
+        h("div", { class: "form2" }, rows(
+          ["Nome da forma", v, "name", { placeholder: "Ex: " + (p.name || "Meowth") + " de Alola", onchange: val => { legend.textContent = val || "Nova forma"; } }],
+          ["Evolui para (espécie)", v, "evolveTo", { placeholder: "Ex: Persian. Vazio = igual à padrão" }],
+          ["CA", v, "ac", { placeholder: "Vazio = igual" }],
+          ["Habilidade oculta", v, "hidden", { list: "dl-abilities", placeholder: "Vazio = igual" }])),
+        h("div", { class: "inline", style: "margin:10px 0" }, h("label", {}, "Tipos", t1, t2)),
+        h("div", { class: "cap" }, "Atributos (vazio = igual à forma padrão)"),
+        h("div", { class: "attrs" }, ATTRS.map(([en, pt]) => { const id = nid("va"); return h("label", { for: id }, pt, control(v.attrs, en, { id, placeholder: "=" })); })),
+        h("div", { class: "levels", style: "margin-top:12px" },
+          listBox("Habilidades (vazio = iguais)", v.abilities, { source: abilitySource }),
+          listBox("Moves iniciais (vazio = iguais)", v.startMoves, { source: moveSource })),
+        h("div", { class: "cap", style: "margin-top:8px" }, "Moves por nível desta forma (os níveis que não preencher continuam iguais à forma padrão)"),
+        levels,
+        h("div", { class: "levels", style: "margin-top:12px" },
+          imageInput(v, "sprite", 126, 126, "Retrato da forma"), imageInput(v, "icon", 40, 30, "Ícone da forma")));
+    });
+    box.replaceChildren(
+      h("h3", { class: "sub" }, "Formas / Variantes"),
+      h("p", { class: "hint" }, "Para formas regionais (tipo Meowth de Alola) ou formas que evoluem diferente (tipo Lycanroc). Ao criar o Pokémon ou ao evoluir para ele, o app pergunta qual forma. Tudo que ficar vazio numa forma continua igual à forma padrão. Em \"Evolui para\" vai o nome da espécie (ex: Persian); a forma de destino (ex: Persian de Alola) é escolhida na hora de evoluir."),
+      p.variants.length ? h("div", { class: "form", style: "margin-bottom:10px" }, rows(["Nome da forma padrão", p, "formName", { placeholder: (p.name || "Lycanroc") + (p.name ? "" : " Forma Diurna") }])) : null,
+      ...cards,
+      h("button", { class: "btn small", onclick: () => { p.variants.push(newVariant(p)); saveDraft(); draw(); } }, "+ Nova forma"));
+  };
+  draw();
+  return box;
 }
 
 // ======================================================================
@@ -784,6 +842,17 @@ function validate() {
     const allMoves = [...p.startMoves, ...p.eggMoves, ...p.levelMoves.flatMap(r => r.moves)];
     for (const mv of allMoves) if (!knownMoves.has(mv)) msgs.push(["warn", `${n}: o Move "${mv}" não existe no app nem no pacote.`]);
     for (const tm of p.tmMoves) if (!(tm in TM_BY_NAME)) msgs.push(["warn", `${n}: "${tm}" não é TM no app (vai ser ignorado).`]);
+    // Formas
+    const forms = (p.variants || []);
+    const formNames = new Set([((p.formName || "").trim() || p.name)]);
+    forms.forEach((v, i) => {
+      const vn = (v.name || "").trim();
+      if (!vn) { msgs.push(["bad", `${n}: a forma ${i + 1} está sem nome.`]); return; }
+      if (formNames.has(vn)) msgs.push(["bad", `${n}: duas formas com o nome "${vn}".`]);
+      formNames.add(vn);
+      for (const a of [...v.abilities, v.hidden].filter(Boolean)) if (!knownAbilities.has(a)) msgs.push(["warn", `${vn}: a habilidade "${a}" não existe no app nem no pacote.`]);
+      for (const mv of [...v.startMoves, ...v.levelMoves.flatMap(r => r.moves)]) if (!knownMoves.has(mv)) msgs.push(["warn", `${vn}: o Move "${mv}" não existe no app nem no pacote.`]);
+    });
     if (!p.sprite) msgs.push(["warn", `${n}: sem retrato (o app mostra uma Pokébola).`]);
     else if (!p.icon || p.iconAuto) msgs.push(["warn", `${n}: sem ícone; vai ser feito do retrato.`]);
   }
@@ -812,9 +881,42 @@ function buildData() {
     const base = slug(p.name);
     if (p.sprite) { out.sprite = base + "_sprite.png"; images[out.sprite] = p.sprite; }
     if (p.icon) { out.icon = base + "_icon.png"; images[out.icon] = p.icon; }
+    // Formas/variantes: variant_data do app (cada forma guarda só o que muda)
+    const variants = (p.variants || []).filter(v => v.name && v.name.trim());
+    if (variants.length) {
+      const baseForm = (p.formName || "").trim() || p.name;
+      const vd = { create_mode: "choose", default: baseForm, permanent: true, variants: {} };
+      vd.variants[baseForm] = { display: baseForm, original_species: baseForm, diff: {} };
+      for (const v of variants) {
+        const vname = v.name.trim();
+        const diff = {};
+        if (v.types.length) diff.Type = [...v.types];
+        if (v.abilities.length) diff.Abilities = [...v.abilities];
+        if (v.hidden) diff["Hidden Ability"] = v.hidden;
+        if (String(v.ac).trim() !== "") diff.AC = Number(v.ac);
+        const attrs = {};
+        for (const [k] of ATTRS) if (String(v.attrs[k] ?? "").trim() !== "") attrs[k] = Number(v.attrs[k]);
+        if (Object.keys(attrs).length) diff.attributes = attrs;
+        const mv = {};
+        if (v.startMoves.length) mv["Starting Moves"] = [...v.startMoves];
+        const vl = {};
+        for (const r of v.levelMoves) { if (!r.moves.length) continue; const k = String(Math.max(1, Math.min(20, r.level))); vl[k] = [...(vl[k] || []), ...r.moves]; }
+        if (Object.keys(vl).length) mv.Level = vl;
+        if (Object.keys(mv).length) diff.Moves = mv;
+        if (v.evolveTo) diff.Evolve = v.evolveTo;
+        const vb = base + "_" + slug(vname);
+        if (v.sprite) { diff.sprite = vb + "_sprite.png"; images[diff.sprite] = v.sprite; }
+        if (v.icon) { diff.icon = vb + "_icon.png"; images[diff.icon] = v.icon; }
+        vd.variants[vname] = { display: vname, original_species: vname, diff };
+      }
+      out.variant_data = vd;
+    }
     data["pokemon.json"][p.name] = out;
     const ev = { current_stage: Number(p.stage) || 1, total_stages: Number(p.stages) || 1 };
-    if (p.evolveTo) Object.assign(ev, { into: [p.evolveTo], level: Number(p.evolveLevel) || 1, points: Number(p.evolvePoints) || 0 });
+    // Evoluções de todas as formas: o app mostra a lista e, se o destino tiver
+    // formas, pergunta qual (ou já escolhe a de mesmo nome)
+    const into = [...new Set([p.evolveTo, ...variants.map(v => v.evolveTo)].filter(Boolean))];
+    if (into.length) Object.assign(ev, { into, level: Number(p.evolveLevel) || 1, points: Number(p.evolvePoints) || 0 });
     data["evolve.json"][p.name] = ev;
     if (p.gender !== "3") data["gender.json"][p.name] = Number(p.gender);
     data["pokedex_extra.json"][String(p.index)] = { flavor: p.flavor, genus: p.genus, height: Math.round(Number(p.height) * 10), weight: Math.round(Number(p.weight) * 10) };
@@ -989,7 +1091,10 @@ function linkBox(link, note) {
     note ? h("p", { class: "hint" }, note) : null);
 }
 async function buildUpload(visibility) {
-  for (const p of state.pokemon) if (p.sprite && (!p.icon || p.iconAuto)) { p.icon = await iconFromSprite(p.sprite); p.iconAuto = true; }
+  for (const p of state.pokemon) {
+    if (p.sprite && (!p.icon || p.iconAuto)) { p.icon = await iconFromSprite(p.sprite); p.iconAuto = true; }
+    for (const v of p.variants || []) if (v.sprite && (!v.icon || v.iconAuto)) { v.icon = await iconFromSprite(v.sprite); v.iconAuto = true; }
+  }
   saveDraft();
   const { data, images } = buildData();
   const imgs = {};
