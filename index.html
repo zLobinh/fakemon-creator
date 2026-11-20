@@ -719,8 +719,11 @@ function editItem(it) {
 // ======================================================================
 // EDITOR DE AUTOMAÇÕES (só as que o app já tem)
 // ======================================================================
-const KIND_NAMES = { amp: "Amplificação de dano", red: "Redução de dano", dice: "Dobrar / dividir dados", bonus: "Bônus fixos" };
+const KIND_NAMES = { amp: "Amplificação de dano", red: "Redução de dano", dice: "Dobrar / dividir dados", bonus: "Bônus fixos",
+  mtype: "Trocar tipo dos Moves", ptype: "Trocar tipo do Pokémon" };
 function newEffect(kind) {
+  if (kind === "mtype") return { kind, from: "Normal", to: "Fairy", points: 1, label: "" };
+  if (kind === "ptype") return { kind, mode: "move_use", once: true, t1: "Fire", t2: "", activatable: true };
   if (kind === "bonus") return { kind, ac: 0, save: 0, attack: 0, dc: 0, speed: 0, speedMult: "", initiative: "", initiativeNum: 0, crit: 0,
     melee: "", meleeNum: 0, ranged: "", rangedNum: 0, all: "", allNum: 0, typeDmgType: "", typeDmg: "", typeDmgNum: 0,
     attrs: { STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 }, highest: 0, condition: "", activatable: false, species: "" };
@@ -728,7 +731,7 @@ function newEffect(kind) {
 }
 function effectsEditor(list, owner) {
   const box = h("div", { class: "stack" });
-  const kinds = owner === "move" ? ["amp", "red", "dice"] : ["amp", "red", "dice", "bonus"];
+  const kinds = owner === "move" ? ["amp", "red", "dice"] : owner === "item" ? ["amp", "red", "dice", "bonus"] : ["amp", "red", "dice", "bonus", "mtype", "ptype"];
   const draw = () => {
     box.replaceChildren(...list.map((e, i) => effectCard(e, owner, () => { list.splice(i, 1); saveDraft(); draw(); })),
       h("div", { class: "checks" }, kinds.map(k => h("button", { class: "btn small", onclick: () => {
@@ -737,6 +740,7 @@ function effectsEditor(list, owner) {
           if (k !== "bonus" && hasAmp) { toast("Itens têm só um efeito de dano"); return; }
           if (k === "bonus" && hasBonus) { toast("Itens têm só um bloco de bônus"); return; }
         }
+        if ((k === "mtype" || k === "ptype" || (k === "bonus" && owner === "ability")) && list.some(x => x.kind === k)) { toast("A habilidade já tem esse efeito"); return; }
         list.push(newEffect(k)); saveDraft(); draw();
       } }, "+ " + KIND_NAMES[k]))));
   };
@@ -756,6 +760,37 @@ function typeChecks(arr) {
 function effectCard(e, owner, onRemove) {
   const card = h("fieldset", { class: "group" }, h("legend", {}, KIND_NAMES[e.kind]), h("div", { class: "hdr" }, h("button", { class: "btn small danger", onclick: onRemove }, "Remover")));
   if (e.kind === "bonus") { card.append(bonusFields(e, owner)); return card; }
+  if (e.kind === "mtype") {
+    card.append(h("p", { class: "hint", style: "margin:0 0 6px" }, "Igual a Pixilate, Aerilate, Liquid Voice e Normalize: os Moves escolhidos passam a ser de outro tipo (STAB, cor e ícone no app seguem o tipo novo)."),
+      autoGrid(
+        field("Moves que mudam", e, "from", { options: [["ANY", "Qualquer tipo"], ["SOUND", "Moves de som"], ...TYPES.map(([en, pt]) => [en, "Moves de " + pt])] }),
+        field("Viram o tipo", e, "to", { options: TYPES }),
+        field("Amplificação nos Moves trocados", e, "points", { number: true, options: [[0, "Nenhuma"], [0.5, "0,5 (½ proficiência)"], [1, "1 (rola 2x, maior)"], [1.5, "1,5"], [2, "2 (+1 dado a cada 2)"]] }),
+        field("Texto curto (aparece no app)", e, "label", { placeholder: "Ex: Pele de Fogo" })));
+    return card;
+  }
+  if (e.kind === "ptype") {
+    const body = h("div", {});
+    const draw = () => {
+      const g = autoGrid(field("Como troca", e, "mode", { options: [["move_use", "Tipo do Move usado (Protean)"], ["fixed", "Um tipo escolhido"]], onchange: draw }));
+      const extra = [];
+      if (e.mode === "fixed") {
+        g.append(field("Tipo 1", e, "t1", { options: TYPES }), field("Tipo 2", e, "t2", { options: [["", "Nenhum"], ...TYPES] }));
+        const act = h("input", { type: "checkbox", checked: e.activatable }); act.addEventListener("change", () => { e.activatable = act.checked; saveDraft(); });
+        extra.push(h("label", { class: "check", style: "margin-top:10px" }, act, "Só com o botão ATIVAR (desmarcado = o Pokémon fica sempre com esse tipo)"));
+      } else {
+        const once = h("input", { type: "checkbox", checked: e.once }); once.addEventListener("change", () => { e.once = once.checked; saveDraft(); });
+        extra.push(h("label", { class: "check", style: "margin-top:10px" }, once, "Só 1x por batalha (volta ao normal no reset de batalha)"));
+      }
+      body.replaceChildren(g, ...extra,
+        h("p", { class: "hint", style: "margin:6px 0 0" }, e.mode === "fixed"
+          ? "Com o tipo trocado, resistências, fraquezas e STAB seguem o tipo novo."
+          : "No app, o tipo muda quando o jogador abaixa o PP do Move usado."));
+    };
+    draw();
+    card.append(body);
+    return card;
+  }
   const g = autoGrid();
   if (e.kind === "dice") g.append(field("Dados", e, "mult", { number: true, options: [[2, "Dobra os dados (×2)"], [0.5, "Corta os dados pela metade"]] }));
   else g.append(field("Pontos", e, "points", { number: true, options: [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4].map(v => [v, String(v).replace(".", ",") + (v === 0.5 ? " (½ proficiência)" : v === 1 ? " (rola 2x, maior)" : v === 2 ? " (+1 dado a cada 2)" : "")]) }));
@@ -1001,9 +1036,21 @@ function buildData() {
   }
   for (const a of state.abilities) {
     data["abilities.json"][a.name] = { Description: a.description };
-    const amp = a.effects.filter(e => e.kind !== "bonus").map(e => ampEntry(e, "ability"));
+    const amp = a.effects.filter(e => ["amp", "red", "dice"].includes(e.kind)).map(e => ampEntry(e, "ability"));
     const bonusE = a.effects.find(e => e.kind === "bonus"); const bonus = bonusE ? bonusEntry(bonusE, "ability") : null;
-    if (amp.length || bonus) data["automations.json"].abilities[a.name] = Object.assign({}, amp.length ? { amplification: amp } : {}, bonus ? { bonuses: bonus } : {});
+    const def = {};
+    const mt = a.effects.find(e => e.kind === "mtype");
+    if (mt && mt.from !== mt.to) {
+      def.move_type = { from: mt.from, to: mt.to };
+      if (Number(mt.points) > 0) amp.push({ points: Number(mt.points), type_override: true, label: (mt.label || a.name).slice(0, 60) });
+    }
+    const pt = a.effects.find(e => e.kind === "ptype");
+    if (pt) def.type_change = pt.mode === "fixed"
+      ? { mode: "fixed", types: [pt.t1, pt.t2].filter((t, i, arr) => t && arr.indexOf(t) === i), activatable: !!pt.activatable }
+      : { mode: "move_use", once_per_battle: pt.once !== false };
+    if (amp.length) def.amplification = amp;
+    if (bonus) def.bonuses = bonus;
+    if (Object.keys(def).length) data["automations.json"].abilities[a.name] = def;
   }
   for (const it of state.items) {
     data["items.json"][it.name] = { Effect: it.effect };
